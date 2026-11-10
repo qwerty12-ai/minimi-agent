@@ -20,10 +20,10 @@ export interface ExecutionPlan extends ExecutionRequirements {
     intent: Intent;
 }
 
-export interface ClassifionInput {
+export interface ClassificationInput {
     message: string;
 }
 
 export interface IntentClassifier {
-    classify(input: ClassifionInput): Promise<IntentClassification>
+    classify(input: ClassificationInput): Promise<IntentClassification>
 }
