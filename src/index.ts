@@ -1,3 +1,15 @@
+export {createAgent} from "./agent/create-agent.js";
+export { planRequest } from "./agent/plan-request.js";
+export { getOllamaConfig } from "./config/ollama.js";
+export { OllamaIntentClassifier } from "./llm/ollama-intent-classifier.js";
+export { OllamaClient } from "./llm/ollama-client.js";
+export type {
+  Intent,
+  ExecutionPlan,
+  ExecutionRequirements,
+  IntentClassifier
+} from "./agent/types.js"
+
 import { buildApp } from "./app.js";
 import { env } from "./config/env.js";
 
