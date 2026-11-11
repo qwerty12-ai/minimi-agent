@@ -11,3 +11,5 @@ coverage/
 Thumbs.db
 .vscode/
 .idea/
+# Local Searxng Configuration
+searxng-settings.yml
