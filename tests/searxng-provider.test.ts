@@ -103,7 +103,7 @@ describe("SearXNGProvider", () => {
     });
   });
 
-  it("limits the number of returned results", async () => {
+  it("maps all valid results without applying the final result limit", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(
         JSON.stringify({
@@ -129,7 +129,7 @@ describe("SearXNGProvider", () => {
       maxResults: 2,
     });
 
-    expect(result.results).toHaveLength(2);
+    expect(result.results).toHaveLength(5);
   });
 
   it("rejects unsuccessful HTTP responses", async () => {

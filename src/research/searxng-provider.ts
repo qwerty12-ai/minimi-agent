@@ -153,8 +153,7 @@ export class SearXNGProvider implements SearchProvider {
                     ...(typeof item.score === "number"
                         ? { score: item.score }
                         : {}),
-                }))
-                .slice(0, request.maxResults ?? 10);
+                }));
 
             return {
                 query: request.query,
