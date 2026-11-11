@@ -84,3 +84,23 @@ export interface ResearchSnapshotRepository {
     conversationId: string
   ): Promise<ResearchSnapshot[]>;
 }
+
+export type MemorySearchSourceType =
+  | "conversation_message"
+  | "memory_record";
+
+export interface MemorySearchResult {
+  sourceType: MemorySearchSourceType;
+  sourceId: string;
+  content: string;
+  createdAt: string;
+  rank: number;
+  kind?: MemoryKind;
+}
+
+export interface MemorySearchRepository {
+  search(
+    query: string,
+    limit?: number
+  ): Promise<MemorySearchResult[]>;
+}
