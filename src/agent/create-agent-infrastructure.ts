@@ -3,9 +3,14 @@ import {
   openDatabase,
   type SQLiteDatabase,
 } from "../database/sqlite.js";
-import { createMemoryStore, type MemoryStore } from "../memory/create-memory-store.js";
+import {
+  createMemoryStore,
+  type MemoryStore,
+} from "../memory/create-memory-store.js";
+import { SQLiteVerificationRepository } from "../memory/sqlite-verification-repository.js";
 import { SearXNGProvider } from "../research/searxng-provider.js";
 import { SearchService } from "../research/search-service.js";
+import type { VerificationRepository } from "./verification-repository.js";
 
 export interface AgentInfrastructureConfig {
   databasePath?: string;
@@ -14,10 +19,11 @@ export interface AgentInfrastructureConfig {
 }
 
 export interface AgentInfrastructure {
-    database: SQLiteDatabase;
-    memoryStore: MemoryStore;
-    searchService: SearchService;
-    close(): void;
+  database: SQLiteDatabase;
+  memoryStore: MemoryStore;
+  searchService: SearchService;
+  verificationRepository: VerificationRepository;
+  close(): void;
 }
 
 export function createAgentInfrastructure(
@@ -29,6 +35,8 @@ export function createAgentInfrastructure(
 
   try {
     const memoryStore = createMemoryStore(database);
+    const verificationRepository =
+      new SQLiteVerificationRepository(database);
 
     const searchProvider = new SearXNGProvider({
       baseUrl: config.searxngBaseUrl ?? env.SEARXNG_BASE_URL,
@@ -45,6 +53,7 @@ export function createAgentInfrastructure(
       database,
       memoryStore,
       searchService,
+      verificationRepository,
 
       close() {
         if (!closed) {
