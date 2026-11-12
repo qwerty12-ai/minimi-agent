@@ -82,6 +82,68 @@ CREATE TABLE IF NOT EXISTS research_snapshot_results (
 CREATE INDEX IF NOT EXISTS idx_snapshot_results_snapshot
 ON research_snapshot_results(snapshot_id, result_order);
 
+-- Persist temporal verification results.
+CREATE TABLE IF NOT EXISTS verification_results (
+  id TEXT PRIMARY KEY,
+  historical_snapshot_id TEXT NOT NULL,
+  current_snapshot_id TEXT,
+  conversation_id TEXT,
+  query TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (
+    status IN ('unchanged', 'changed', 'unsupported', 'inconclusive')
+  ),
+  findings_json TEXT NOT NULL,
+  verified_at TEXT NOT NULL,
+  FOREIGN KEY (historical_snapshot_id)
+    REFERENCES research_snapshots(id)
+    ON DELETE CASCADE,
+  FOREIGN KEY (current_snapshot_id)
+    REFERENCES research_snapshots(id)
+    ON DELETE SET NULL,
+  FOREIGN KEY (conversation_id)
+    REFERENCES conversations(id)
+    ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_verification_historical
+ON verification_results(historical_snapshot_id);
+
+CREATE INDEX IF NOT EXISTS idx_verification_conversation
+ON verification_results(conversation_id);
+
+-- Persist individual evidence comparison results.
+CREATE TABLE IF NOT EXISTS comparison_results (
+  id TEXT PRIMARY KEY,
+  historical_snapshot_id TEXT NOT NULL,
+  current_snapshot_id TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (
+    status IN (
+      'unchanged',
+      'changed',
+      'historical_only',
+      'current_only',
+      'inconclusive'
+    )
+  ),
+  historical_evidence_ids_json TEXT NOT NULL,
+  current_evidence_ids_json TEXT NOT NULL,
+  explanation TEXT NOT NULL,
+  compared_at TEXT NOT NULL,
+  FOREIGN KEY (historical_snapshot_id)
+    REFERENCES research_snapshots(id)
+    ON DELETE CASCADE,
+  FOREIGN KEY (current_snapshot_id)
+    REFERENCES research_snapshots(id)
+    ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_comparison_snapshots
+ON comparison_results(
+  historical_snapshot_id,
+  current_snapshot_id,
+  compared_at
+);
+
 -- Searchable document storage
 CREATE TABLE IF NOT EXISTS memory_search_documents (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

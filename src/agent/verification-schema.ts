@@ -116,7 +116,63 @@ export const ComparisonResultSchema = z.object({
   ).max(500),
   explanation: z.string().trim().min(1).max(10000),
   comparedAt: z.string().datetime(),
-}).strict();
+}).strict().superRefine((result, context) => {
+  if (
+    result.status === "unchanged" &&
+    (
+      result.historicalEvidenceIds.length === 0 ||
+      result.currentEvidenceIds.length === 0
+    )
+  ) {
+    context.addIssue({
+      code: "custom",
+      path: ["historicalEvidenceIds"],
+      message: "An unchanged comparison must reference historical and current evidence.",
+    });
+  }
+
+  if (
+    result.status === "changed" &&
+    (
+      result.historicalEvidenceIds.length === 0 ||
+      result.currentEvidenceIds.length === 0
+    )
+  ) {
+    context.addIssue({
+      code: "custom",
+      path: ["historicalEvidenceIds"],
+      message: "A changed comparison must reference historical and current evidence.",
+    });
+  }
+
+  if (
+    result.status === "historical_only" &&
+    (
+      result.historicalEvidenceIds.length === 0 ||
+      result.currentEvidenceIds.length > 0
+    )
+  ) {
+    context.addIssue({
+      code: "custom",
+      path: ["historicalEvidenceIds"],
+      message: "A historical-only comparison must reference only historical evidence.",
+    });
+  }
+
+  if (
+    result.status === "current_only" &&
+    (
+      result.currentEvidenceIds.length === 0 ||
+      result.historicalEvidenceIds.length > 0
+    )
+  ) {
+    context.addIssue({
+      code: "custom",
+      path: ["currentEvidenceIds"],
+      message: "A current-only comparison must reference only current evidence.",
+    });
+  }
+});
 
 export function parseVerificationRequest(value: unknown) {
   return VerificationRequestSchema.parse(value);
