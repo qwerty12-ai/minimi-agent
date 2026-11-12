@@ -12,6 +12,15 @@ import {
   type SQLiteDatabase,
 } from "../src/database/sqlite.js";
 
+import {
+    existsSync,
+    mkdtempSync,
+    rmSync
+} from "node:fs"
+
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 describe("SQLite database", () => {
   let database: SQLiteDatabase;
 
@@ -226,5 +235,78 @@ describe("SQLite connection validation", () => {
     expect(() => openDatabase("   ")).toThrow(
       "Database path must not be empty."
     );
+  });
+});
+
+describe("SQLite persistent database paths", () => {
+  let directory: string;
+
+  beforeEach(() => {
+    directory = mkdtempSync(
+      join(tmpdir(), "minimi-sqlite-")
+    );
+  });
+
+  afterEach(() => {
+    rmSync(directory, { recursive: true, force: true });
+  });
+
+  it("creates missing parent directories automatically", () => {
+    const databasePath = join(
+      directory,
+      "data",
+      "sqlite",
+      "minimi-agent.db"
+    );
+
+    const database = openDatabase(databasePath);
+
+    try {
+      expect(existsSync(databasePath)).toBe(true);
+
+      const result = database.prepare(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?"
+      ).get("conversations");
+
+      expect(result).toBeDefined();
+    } finally {
+      database.close();
+    }
+  });
+
+  it("preserves existing database data when reopened", () => {
+    const databasePath = join(
+      directory,
+      "data",
+      "minimi-agent.db"
+    );
+
+    const firstDatabase = openDatabase(databasePath);
+
+    firstDatabase.prepare(`
+      INSERT INTO conversations (
+        id, title, created_at, updated_at
+      )
+      VALUES (?, ?, ?, ?)
+    `).run(
+      "persistent-1",
+      "Persistent conversation",
+      "2026-11-11T10:00:00.000Z",
+      "2026-11-11T10:00:00.000Z",
+    );
+
+    firstDatabase.close();
+
+    const secondDatabase = openDatabase(databasePath);
+
+    try {
+      const result = secondDatabase.prepare(
+        "SELECT title FROM conversations WHERE id = ?"
+      ).get("persistent-1") as { title: string } | undefined;
+
+      expect(result?.title).toBe("Persistent conversation");
+    } finally {
+      secondDatabase.close();
+    }
   });
 });

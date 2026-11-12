@@ -6,110 +6,185 @@ import {
   vi,
 } from "vitest";
 
+import {
+  mkdtempSync,
+  rmSync,
+} from "node:fs";
+
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 import { createAgent } from "../src/agent/create-agent.js";
-
-function mockOllamaResponse(intent: string) {
-  const fetchMock = vi.fn().mockResolvedValue({
-    ok: true,
-    status: 200,
-
-    json: async () => ({
-      message: {
-        content: JSON.stringify({
-          intent,
-        }),
-      },
-    }),
-  });
-
-  vi.stubGlobal("fetch", fetchMock);
-
-  return fetchMock;
-}
+import { createAgentInfrastructure } from "../src/agent/create-agent-infrastructure.js";
 
 describe("Agent Integration", () => {
+  let directory: string | undefined;
+
+  const generationTime = "2026-11-12T10:00:00.000Z";
+
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.unstubAllEnvs();
+
+    if (directory) {
+      rmSync(directory, {
+        recursive: true,
+        force: true,
+      });
+
+      directory = undefined;
+    }
   });
 
-  it("should classify a research request and create an execution plan", async () => {
-    const fetchMock = mockOllamaResponse("RESEARCH");
-
-    const agent = createAgent();
-
-    const plan = await agent.plan(
-      "Find the latest pricing of Neon."
+  function createTestDirectory(): string {
+    directory = mkdtempSync(
+      join(tmpdir(), "minimi-agent-integration-"),
     );
 
-    expect(plan).toEqual({
-      intent: "RESEARCH",
-      requiresMemory: false,
-      requiresSearch: true,
-    });
+    return directory;
+  }
 
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-  });
+  function mockFetch() {
+    const fetchMock = vi.fn(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
 
-  it("should classify a recall request and create an execution plan", async () => {
-    const fetchMock = mockOllamaResponse("RECALL");
+        if (url.endsWith("/api/chat")) {
+          const payload = JSON.parse(
+            String(init?.body ?? "{}"),
+          );
 
-    const agent = createAgent();
+          const systemMessage = payload.messages?.[0]?.content ?? "";
 
-    const plan = await agent.plan(
-      "What did I ask you about PostgreSQL last week?"
+          const content = systemMessage.includes("intent")
+            ? {
+                intent: "RESEARCH",
+              }
+            : {
+                answer: "TypeScript is a strongly typed programming language.",
+                intent: "RESEARCH",
+                status: "supported",
+                citations: [],
+                generatedAt: generationTime,
+              };
+
+          return new Response(
+            JSON.stringify({
+              message: {
+                content: JSON.stringify(content),
+              },
+            }),
+            {
+              status: 200,
+              headers: {
+                "Content-Type": "application/json",
+              },
+            },
+          );
+        }
+
+        throw new Error(`Unexpected request: ${url}`);
+      },
     );
 
-    expect(plan).toEqual({
-      intent: "RECALL",
-      requiresMemory: true,
-      requiresSearch: false,
-    });
+    vi.stubGlobal("fetch", fetchMock);
 
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-  });
+    return fetchMock;
+  }
 
-  it("should classify a verification request correctly", async () => {
-    mockOllamaResponse("VERIFY");
+  it("executes the complete research pipeline and persists its conversation", async () => {
+    mockFetch();
 
-    const agent = createAgent();
-
-    const plan = await agent.plan(
-      "Is the pricing you showed me last Tuesday still accurate?"
+    const databasePath = join(
+      createTestDirectory(),
+      "data",
+      "minimi-agent.db",
     );
 
-    expect(plan).toEqual({
-      intent: "VERIFY",
-      requiresMemory: true,
-      requiresSearch: true,
-    });
-  });
-
-  it("should classify a comparison request correctly", async () => {
-    mockOllamaResponse("COMPARE");
-
-    const agent = createAgent();
-
-    const plan = await agent.plan(
-      "Compare the CRM tools we shortlisted against their current features."
+    vi.stubEnv(
+      "OLLAMA_BASE_URL",
+      "http://localhost:11434",
     );
 
-    expect(plan).toEqual({
-      intent: "COMPARE",
-      requiresMemory: true,
-      requiresSearch: true,
+    vi.stubEnv(
+      "OLLAMA_MODEL",
+      "qwen3.5:2b",
+    );
+
+    const infrastructure = createAgentInfrastructure({
+      databasePath,
+      searxngBaseUrl: "http://localhost:8080",
+      searchFetch: vi.fn(async () =>
+        new Response(
+          JSON.stringify({
+            results: [
+              {
+                title: "TypeScript Documentation",
+                url: "https://www.typescriptlang.org/",
+                content: "Official TypeScript documentation.",
+                engine: "test-engine",
+              },
+            ],
+          }),
+          {
+            status: 200,
+            headers: {
+              "Content-Type": "application/json",
+            },
+          },
+        ),
+      ) as unknown as typeof fetch,
     });
-  });
 
-  it("should reject empty messages before calling Ollama", async () => {
-    const fetchMock = mockOllamaResponse("RESEARCH");
+    const agent = createAgent({
+      infrastructure,
+      clock: () => new Date(generationTime),
+    });
 
-    const agent = createAgent();
+    try {
+      const response = await agent.execute({
+        message: "Find TypeScript documentation.",
+      });
 
-    await expect(
-      agent.plan("   ")
-    ).rejects.toThrow("Message must not be empty.");
+      expect(response).toMatchObject({
+        intent: "RESEARCH",
+        status: "supported",
+        answer: "TypeScript is a strongly typed programming language.",
+        conversationId: expect.any(String),
+      });
 
-    expect(fetchMock).not.toHaveBeenCalled();
+      const conversation =
+        await infrastructure.memoryStore.conversations.findById(
+          response.conversationId,
+        );
+
+      expect(conversation).not.toBeNull();
+
+      const messages =
+        await infrastructure.memoryStore.conversations.getMessages(
+          response.conversationId,
+        );
+
+      expect(messages).toHaveLength(2);
+
+      expect(messages.map((message) => message.role)).toEqual([
+        "user",
+        "assistant",
+      ]);
+
+      const snapshots =
+        await infrastructure.memoryStore.researchSnapshots.findByConversation(
+          response.conversationId,
+        );
+
+      expect(snapshots).toHaveLength(1);
+
+      expect(snapshots[0].query).toBe(
+        "Find TypeScript documentation.",
+      );
+    } finally {
+      agent.close();
+      infrastructure.close();
+    }
   });
 });

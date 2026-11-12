@@ -7,6 +7,8 @@ const envSchema = z.object({
   PORT: z.coerce.number().int().min(1).max(65535).default(3000),
   OLLAMA_BASE_URL: z.string().url().default("http://127.0.0.1:11434"),
   OLLAMA_MODEL: z.string().min(1).default("qwen3.5:2b"),
+  SEARXNG_BASE_URL: z.string().url().default("http://127.0.0.1:8080"),
+  DATABASE_PATH: z.string().trim().min(1).default("./data/minimi-agent.db")
 });
 
 export const env = envSchema.parse(process.env);
