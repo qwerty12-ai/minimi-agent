@@ -76,6 +76,10 @@ export interface AgentResponse {
   generatedAt: string;
 }
 
+export interface AgentExecutionResult extends AgentResponse {
+  conversationId: string;
+}
+
 // Stages at which orchestration can encounter a failure.
 export type ExecutionStage =
   | "classification"

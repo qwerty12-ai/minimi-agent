@@ -1,4 +1,11 @@
-import { createAgentInfrastructure, type AgentInfrastructure, type AgentInfrastructureConfig } from "./create-agent-infrastructure.js";
+import { randomUUID } from "node:crypto";
+
+import {
+  createAgentInfrastructure,
+  type AgentInfrastructure,
+  type AgentInfrastructureConfig,
+} from "./create-agent-infrastructure.js";
+
 import { planRequest } from "./plan-request.js";
 import { MemoryRetriever } from "./memory-retriever.js";
 import { ResearchExecutor } from "./research-executor.js";
@@ -9,11 +16,17 @@ import { parseAgentExecutionRequest } from "./orchestration-schema.js";
 
 import type {
   AgentExecutionRequest,
-  AgentResponse,
+  AgentExecutionResult,
 } from "./orchestration-types.js";
 
 import type { IntentClassifier } from "./types.js";
 import type { LLMProvider } from "../llm/llm-provider.js";
+
+import type {
+  Conversation,
+  ConversationMessage,
+  ResearchSnapshot,
+} from "../memory/types.js";
 
 import { createOllamaClient } from "../llm/create-ollama-provider.js";
 import { OllamaIntentClassifier } from "../llm/ollama-intent-classifier.js";
@@ -24,6 +37,17 @@ export interface CreateAgentOptions {
   infrastructure?: AgentInfrastructure;
   infrastructureConfig?: AgentInfrastructureConfig;
   clock?: () => Date;
+}
+
+export class AgentPersistenceError extends Error {
+  constructor(
+    readonly operation: string,
+    message: string,
+    options?: ErrorOptions,
+  ) {
+    super(message, options);
+    this.name = "AgentPersistenceError";
+  }
 }
 
 export function createAgent(options: CreateAgentOptions = {}) {
@@ -55,6 +79,54 @@ export function createAgent(options: CreateAgentOptions = {}) {
 
   const synthesizer = new GroundedSynthesizer(llm, clock);
 
+  async function persistConversation(
+    conversation: Conversation,
+  ): Promise<void> {
+    try {
+      await infrastructure.memoryStore.conversations.create(
+        conversation,
+      );
+    } catch (error) {
+      throw new AgentPersistenceError(
+        "create_conversation",
+        "Failed to create conversation.",
+        { cause: error },
+      );
+    }
+  }
+
+  async function persistMessage(
+    message: ConversationMessage,
+  ): Promise<void> {
+    try {
+      await infrastructure.memoryStore.conversations.appendMessage(
+        message,
+      );
+    } catch (error) {
+      throw new AgentPersistenceError(
+        "append_message",
+        `Failed to persist ${message.role} message.`,
+        { cause: error },
+      );
+    }
+  }
+
+  async function persistResearch(
+    snapshot: ResearchSnapshot,
+  ): Promise<void> {
+    try {
+      await infrastructure.memoryStore.researchSnapshots.save(
+        snapshot,
+      );
+    } catch (error) {
+      throw new AgentPersistenceError(
+        "save_research_snapshot",
+        "Failed to persist research snapshot.",
+        { cause: error },
+      );
+    }
+  }
+
   return {
     async plan(message: string) {
       return planRequest(message, classifier);
@@ -62,12 +134,11 @@ export function createAgent(options: CreateAgentOptions = {}) {
 
     async execute(
       request: AgentExecutionRequest,
-    ): Promise<AgentResponse> {
-      let validatedRequest: AgentExecutionRequest;
+    ): Promise<AgentExecutionResult> {
+      let validatedRequest: ReturnType<typeof parseAgentExecutionRequest>;
 
       try {
-        parseAgentExecutionRequest(request);
-        validatedRequest = request;
+        validatedRequest = parseAgentExecutionRequest(request);
       } catch (error) {
         throw new Error(
           "Agent execution request is invalid.",
@@ -75,7 +146,41 @@ export function createAgent(options: CreateAgentOptions = {}) {
         );
       }
 
-      const message = validatedRequest.message.trim();
+      const message = validatedRequest.message;
+      const now = clock().toISOString();
+
+      const conversationId =
+        validatedRequest.conversationId ?? randomUUID();
+
+      if (validatedRequest.conversationId) {
+        let existingConversation: Conversation | null;
+
+        try {
+          existingConversation =
+            await infrastructure.memoryStore.conversations.findById(
+              conversationId,
+            );
+        } catch (error) {
+          throw new AgentPersistenceError(
+            "find_conversation",
+            "Failed to retrieve existing conversation.",
+            { cause: error },
+          );
+        }
+
+        if (!existingConversation) {
+          throw new Error(
+            `Conversation '${conversationId}' does not exist.`,
+          );
+        }
+      } else {
+        await persistConversation({
+          id: conversationId,
+          title: message.slice(0, 200),
+          createdAt: now,
+          updatedAt: now,
+        });
+      }
 
       const plan = await planRequest(message, classifier);
 
@@ -83,21 +188,54 @@ export function createAgent(options: CreateAgentOptions = {}) {
         ? await memoryRetriever.retrieve(message)
         : null;
 
+      await persistMessage({
+        id: randomUUID(),
+        conversationId,
+        role: "user",
+        content: message,
+        createdAt: clock().toISOString(),
+      });
+
       const research = await researchExecutor.execute(
         message,
         plan,
       );
+
+      if (research) {
+        await persistResearch({
+          id: randomUUID(),
+          conversationId,
+          query: research.query,
+          provider: research.provider,
+          searchedAt: research.searchedAt,
+          recordedAt: clock().toISOString(),
+          results: research.results,
+        });
+      }
 
       const evidence = evidenceAssembler.assemble(
         memory,
         research,
       );
 
-      return synthesizer.synthesize({
+      const response = await synthesizer.synthesize({
         question: message,
         intent: plan.intent,
         evidence,
       });
+
+      await persistMessage({
+        id: randomUUID(),
+        conversationId,
+        role: "assistant",
+        content: response.answer,
+        createdAt: response.generatedAt,
+      });
+
+      return {
+        ...response,
+        conversationId,
+      };
     },
 
     close() {
