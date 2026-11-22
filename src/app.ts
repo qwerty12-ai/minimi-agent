@@ -132,6 +132,61 @@ export function buildApp(): FastifyInstance {
     }
   });
 
+  // M7.8: Search indexed memories and conversation messages.
+  app.get("/api/memory/search", async (request, reply) => {
+    const query = request.query as {
+      q?: string;
+      limit?: string;
+    };
+
+    const searchQuery = query.q?.trim();
+
+    if (!searchQuery || searchQuery.length > 500) {
+      return reply.status(400).send({
+        error: "Invalid request",
+        message: "A search query between 1 and 500 characters is required.",
+      });
+    }
+
+    let limit = 10;
+
+    if (query.limit !== undefined) {
+      const parsedLimit = Number(query.limit);
+
+      if (
+        !Number.isInteger(parsedLimit) ||
+        parsedLimit < 1 ||
+        parsedLimit > 50
+      ) {
+        return reply.status(400).send({
+          error: "Invalid request",
+          message: "limit must be an integer between 1 and 50.",
+        });
+      }
+
+      limit = parsedLimit;
+    }
+
+    try {
+      const results = await getAgent().searchMemory(
+        searchQuery,
+        limit,
+      );
+
+      return reply.status(200).send({
+        query: searchQuery,
+        results,
+      });
+    } catch (error) {
+      request.log.error(error);
+
+      return reply.status(500).send({
+        error: "Memory search failed",
+        message: "MiniMi could not search stored memory.",
+      });
+    }
+  });
+
   app.post("/api/agent/execute", async (request, reply) => {
     let validatedRequest;
 

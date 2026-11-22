@@ -8,9 +8,10 @@ import ChatInput from './components/ChatInput'
 import MessageList from './components/MessageList'
 import HistoryWorkspace from './components/HistoryWorkspace'
 import VerificationWorkspace from './components/VerificationWorkspace'
+import MemoryWorkspace from './components/MemoryWorkspace'
 import type { ChatMessage as ChatMessageType } from './components/types'
 
-type Workspace = 'research' | 'history' | 'verification'
+type Workspace = 'research' | 'history' | 'memory' | 'verification'
 
 function App() {
   const [message, setMessage] = useState('')
@@ -120,6 +121,13 @@ function App() {
     setError(null)
   }
 
+  const workspaceName: Record<Workspace, string> = {
+    research: 'Research',
+    history: 'History',
+    memory: 'Memory',
+    verification: 'Verification',
+  }
+
   return (
     <div className="flex min-h-screen bg-[#0c0d10] text-[#e5e7eb]">
       <Sidebar
@@ -135,11 +143,7 @@ function App() {
             <span className="text-gray-500">Workspace</span>
             <span className="text-gray-700">/</span>
             <strong className="text-gray-200">
-              {activeWorkspace === 'research'
-                ? 'Research'
-                : activeWorkspace === 'history'
-                  ? 'History'
-                  : 'Verification'}
+              {workspaceName[activeWorkspace]}
             </strong>
           </div>
 
@@ -188,6 +192,8 @@ function App() {
                 />
               )}
             </>
+          ) : activeWorkspace === 'memory' ? (
+            <MemoryWorkspace />
           ) : (
             <VerificationWorkspace />
           )}

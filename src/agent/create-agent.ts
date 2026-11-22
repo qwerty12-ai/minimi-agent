@@ -223,6 +223,22 @@ export function createAgent(options: CreateAgentOptions = {}) {
       return planRequest(message, classifier);
     },
 
+    // M7.8: Search persisted memories and conversation content.
+    async searchMemory(query: string, limit = 10) {
+      try {
+        return await infrastructure.memoryStore.search.search(
+          query,
+          limit,
+        );
+      } catch (error) {
+        throw new AgentPersistenceError(
+          "search_memory",
+          "Failed to search memory.",
+          { cause: error },
+        );
+      }
+    },
+
     // M7.4: Conversation history listing
     async listConversations(limit = 50) {
       try {

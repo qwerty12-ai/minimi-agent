@@ -108,6 +108,26 @@ export interface VerificationResponse {
   comparisons: ComparisonResult[]
 }
 
+export type MemoryKind = 'fact' | 'preference' | 'decision' | 'context'
+
+export type MemorySearchSourceType =
+  | 'conversation_message'
+  | 'memory_record'
+
+export interface MemorySearchResult {
+  sourceType: MemorySearchSourceType
+  sourceId: string
+  content: string
+  createdAt: string
+  rank: number
+  kind?: MemoryKind
+}
+
+export interface MemorySearchResponse {
+  query: string
+  results: MemorySearchResult[]
+}
+
 async function handleApiError(
   response: Response,
   fallback: string,
@@ -207,4 +227,27 @@ export async function verifyResearch(
   }
 
   return response.json() as Promise<VerificationResponse>
+}
+
+export async function searchMemory(
+  query: string,
+  limit = 20,
+): Promise<MemorySearchResponse> {
+  const params = new URLSearchParams({
+    q: query,
+    limit: String(limit),
+  })
+
+  const response = await fetch(
+    `/api/memory/search?${params.toString()}`,
+  )
+
+  if (!response.ok) {
+    await handleApiError(
+      response,
+      'Memory search failed',
+    )
+  }
+
+  return response.json() as Promise<MemorySearchResponse>
 }

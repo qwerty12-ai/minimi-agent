@@ -1,9 +1,9 @@
 interface SidebarProps {
   loading: boolean
   onNewChat: () => void
-  activeWorkspace: 'research' | 'history' | 'verification'
+  activeWorkspace: 'research' | 'history' | 'memory' | 'verification'
   onWorkspaceChange: (
-    workspace: 'research' | 'history' | 'verification',
+    workspace: 'research' | 'history' | 'memory' | 'verification',
   ) => void
 }
 
@@ -14,7 +14,7 @@ function Sidebar({
   onWorkspaceChange,
 }: SidebarProps) {
   const workspaceClass = (
-    workspace: 'research' | 'history' | 'verification',
+    workspace: 'research' | 'history' | 'memory' | 'verification',
   ) =>
     activeWorkspace === workspace
       ? 'flex w-full items-center gap-3 rounded-lg bg-[#24232f] px-3 py-2.5 text-left text-sm text-violet-300 transition'
@@ -62,8 +62,8 @@ function Sidebar({
           </button>
 
           <button
-            disabled
-            className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm text-gray-500"
+            onClick={() => onWorkspaceChange('memory')}
+            className={workspaceClass('memory')}
           >
             <span>⌘</span> Memory
           </button>
