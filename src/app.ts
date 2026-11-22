@@ -93,6 +93,45 @@ export function buildApp(): FastifyInstance {
     }
   });
 
+  // M7.7.3: List historical research snapshots.
+  app.get("/api/research-snapshots", async (request, reply) => {
+    const query = request.query as { limit?: string };
+
+    let limit = 50;
+
+    if (query.limit !== undefined) {
+      const parsedLimit = Number(query.limit);
+
+      if (
+        !Number.isInteger(parsedLimit) ||
+        parsedLimit < 1 ||
+        parsedLimit > 100
+      ) {
+        return reply.status(400).send({
+          error: "Invalid request",
+          message: "limit must be an integer between 1 and 100.",
+        });
+      }
+
+      limit = parsedLimit;
+    }
+
+    try {
+      const snapshots = await getAgent().listResearchSnapshots(limit);
+
+      return reply.status(200).send({
+        snapshots,
+      });
+    } catch (error) {
+      request.log.error(error);
+
+      return reply.status(500).send({
+        error: "Research snapshot retrieval failed",
+        message: "MiniMi could not retrieve historical research snapshots.",
+      });
+    }
+  });
+
   app.post("/api/agent/execute", async (request, reply) => {
     let validatedRequest;
 

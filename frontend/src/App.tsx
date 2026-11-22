@@ -7,9 +7,10 @@ import ErrorBanner from './components/ErrorBanner'
 import ChatInput from './components/ChatInput'
 import MessageList from './components/MessageList'
 import HistoryWorkspace from './components/HistoryWorkspace'
+import VerificationWorkspace from './components/VerificationWorkspace'
 import type { ChatMessage as ChatMessageType } from './components/types'
 
-type Workspace = 'research' | 'history'
+type Workspace = 'research' | 'history' | 'verification'
 
 function App() {
   const [message, setMessage] = useState('')
@@ -17,7 +18,8 @@ function App() {
   const [conversationId, setConversationId] = useState<string | undefined>()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [activeWorkspace, setActiveWorkspace] = useState<Workspace>('research')
+  const [activeWorkspace, setActiveWorkspace] =
+    useState<Workspace>('research')
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -133,7 +135,11 @@ function App() {
             <span className="text-gray-500">Workspace</span>
             <span className="text-gray-700">/</span>
             <strong className="text-gray-200">
-              {activeWorkspace === 'research' ? 'Research' : 'History'}
+              {activeWorkspace === 'research'
+                ? 'Research'
+                : activeWorkspace === 'history'
+                  ? 'History'
+                  : 'Verification'}
             </strong>
           </div>
 
@@ -168,18 +174,22 @@ function App() {
                 onSubmit={handleSubmit}
               />
             </>
-          ) : (
-            <HistoryWorkspace
-              loading={loading}
-              onSelectConversation={selectConversation}
-            />
-          )}
+          ) : activeWorkspace === 'history' ? (
+            <>
+              <HistoryWorkspace
+                loading={loading}
+                onSelectConversation={selectConversation}
+              />
 
-          {activeWorkspace === 'history' && error && (
-            <ErrorBanner
-              error={error}
-              onDismiss={() => setError(null)}
-            />
+              {error && (
+                <ErrorBanner
+                  error={error}
+                  onDismiss={() => setError(null)}
+                />
+              )}
+            </>
+          ) : (
+            <VerificationWorkspace />
           )}
         </section>
 

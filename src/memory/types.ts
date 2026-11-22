@@ -52,6 +52,15 @@ export interface ResearchSnapshot {
   results: SearchResult[];
 }
 
+export interface ResearchSnapshotSummary {
+  id: string;
+  conversationId?: string;
+  query: string;
+  provider: string;
+  searchedAt: string;
+  recordedAt: string;
+}
+
 export interface ConversationRepository {
   create(conversation: Conversation): Promise<void>;
 
@@ -85,6 +94,8 @@ export interface ResearchSnapshotRepository {
   findByConversation(
     conversationId: string
   ): Promise<ResearchSnapshot[]>;
+
+  list(limit?: number): Promise<ResearchSnapshotSummary[]>;
 }
 
 export type MemorySearchSourceType =

@@ -6,6 +6,7 @@ import type {
     ConversationRepository,
     ResearchSnapshot,
     ResearchSnapshotRepository,
+    ResearchSnapshotSummary,
 } from "./types.js";
 
 import {
@@ -326,6 +327,39 @@ export class SQLiteResearchSnapshotRepository
             .all(conversationId) as SnapshotRow[];
 
         return rows.map((row) => this.buildSnapshot(row));
+    }
+
+    async list(limit = 50): Promise<ResearchSnapshotSummary[]> {
+        const safeLimit = Math.max(
+            1,
+            Math.min(100, Math.floor(limit))
+        );
+
+        const rows = this.database
+            .prepare(`
+                SELECT
+                    id,
+                    conversation_id,
+                    query,
+                    provider,
+                    searched_at,
+                    recorded_at
+                FROM research_snapshots
+                ORDER BY recorded_at DESC, id DESC
+                LIMIT ?
+            `)
+            .all(safeLimit) as SnapshotRow[];
+
+        return rows.map((row) => ({
+            id: row.id,
+            ...(row.conversation_id !== null
+                ? { conversationId: row.conversation_id }
+                : {}),
+            query: row.query,
+            provider: row.provider,
+            searchedAt: row.searched_at,
+            recordedAt: row.recorded_at,
+        }));
     }
 
     private buildSnapshot(row: SnapshotRow): ResearchSnapshot {

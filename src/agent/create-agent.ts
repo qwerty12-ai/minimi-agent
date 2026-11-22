@@ -40,6 +40,7 @@ import type {
   Conversation,
   ConversationMessage,
   ResearchSnapshot,
+  ResearchSnapshotSummary,
 } from "../memory/types.js";
 
 import type {
@@ -232,6 +233,23 @@ export function createAgent(options: CreateAgentOptions = {}) {
         throw new AgentPersistenceError(
           "list_conversations",
           "Failed to retrieve conversation history.",
+          { cause: error },
+        );
+      }
+    },
+
+    // M7.7.3: Historical research snapshot listing
+    async listResearchSnapshots(
+      limit = 50,
+    ): Promise<ResearchSnapshotSummary[]> {
+      try {
+        return await infrastructure.memoryStore.researchSnapshots.list(
+          limit,
+        );
+      } catch (error) {
+        throw new AgentPersistenceError(
+          "list_research_snapshots",
+          "Failed to retrieve research snapshots.",
           { cause: error },
         );
       }

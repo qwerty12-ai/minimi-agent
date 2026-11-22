@@ -1,8 +1,10 @@
 interface SidebarProps {
   loading: boolean
   onNewChat: () => void
-  activeWorkspace: 'research' | 'history'
-  onWorkspaceChange: (workspace: 'research' | 'history') => void
+  activeWorkspace: 'research' | 'history' | 'verification'
+  onWorkspaceChange: (
+    workspace: 'research' | 'history' | 'verification',
+  ) => void
 }
 
 function Sidebar({
@@ -11,7 +13,9 @@ function Sidebar({
   activeWorkspace,
   onWorkspaceChange,
 }: SidebarProps) {
-  const workspaceClass = (workspace: 'research' | 'history') =>
+  const workspaceClass = (
+    workspace: 'research' | 'history' | 'verification',
+  ) =>
     activeWorkspace === workspace
       ? 'flex w-full items-center gap-3 rounded-lg bg-[#24232f] px-3 py-2.5 text-left text-sm text-violet-300 transition'
       : 'flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm text-gray-400 transition hover:bg-[#1b1c23] hover:text-gray-200'
@@ -65,8 +69,8 @@ function Sidebar({
           </button>
 
           <button
-            disabled
-            className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm text-gray-500"
+            onClick={() => onWorkspaceChange('verification')}
+            className={workspaceClass('verification')}
           >
             <span>⇄</span> Verification
           </button>
