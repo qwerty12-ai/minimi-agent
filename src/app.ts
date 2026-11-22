@@ -1,6 +1,7 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import { createAgent } from "./agent/create-agent.js";
 import { parseAgentExecutionRequest } from "./agent/orchestration-schema.js";
+import { parseVerificationRequest } from "./agent/verification-schema.js";
 
 export function buildApp(): FastifyInstance {
   const app: FastifyInstance = Fastify({
@@ -119,6 +120,41 @@ export function buildApp(): FastifyInstance {
       return reply.status(500).send({
         error: "Agent execution failed",
         message: "MiniMi could not complete the request.",
+      });
+    }
+  });
+
+  app.post("/api/agent/verify", async (request, reply) => {
+    let validatedRequest;
+
+    try {
+      validatedRequest = parseVerificationRequest(request.body);
+    } catch {
+      return reply.status(400).send({
+        error: "Invalid request",
+        message:
+          "A valid historicalSnapshotId and optional conversationId/question are required.",
+      });
+    }
+
+    try {
+      const result = await getAgent().verify({
+        historicalSnapshotId: validatedRequest.historicalSnapshotId,
+        ...(validatedRequest.conversationId
+          ? { conversationId: validatedRequest.conversationId }
+          : {}),
+        ...(validatedRequest.question
+          ? { question: validatedRequest.question }
+          : {}),
+      });
+
+      return reply.status(200).send(result);
+    } catch (error) {
+      request.log.error(error);
+
+      return reply.status(500).send({
+        error: "Verification failed",
+        message: "MiniMi could not verify the historical research.",
       });
     }
   });
