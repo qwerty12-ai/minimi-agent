@@ -89,6 +89,44 @@ These controls reduce invalid data flow and make failures observable and testabl
 
 MiniMi Agent v1 is a locally operated, single-user project. Authentication, authorization, multi-user data isolation and production SaaS deployment are not implemented. This scope prioritizes the agent's research, evidence, memory and temporal-verification behavior within the challenge constraints.
 
+## Performance and Execution Environment
+
+MiniMi Agent uses local LLM inference through Ollama. Consequently,
+response latency is influenced not only by the agent's orchestration
+and research pipeline, but also by the hardware and inference
+configuration on which the application runs.
+
+The development and evaluation environment is a CPU-based laptop
+running local model inference. Research requests involving retrieval,
+evidence processing, and synthesis may therefore take considerably
+longer than they would on a machine equipped with more capable
+hardware or accelerated inference.
+
+The observed response time should not be interpreted as a fixed
+performance characteristic of MiniMi Agent. End-to-end latency
+depends on several factors, including:
+
+- CPU performance and available compute resources
+- Memory availability and system load
+- Model size and quantization
+- Inference configuration and context length
+- Search and retrieval latency
+- Evidence processing and synthesis workload
+
+The current implementation prioritizes locally executable research,
+evidence handling, persistent context, and verification capabilities
+within the available development environment.
+
+Performance optimization remains an area for further work. Potential
+improvements include profiling individual pipeline stages, reducing
+unnecessary inference calls, optimizing prompt and context size,
+improving concurrency where appropriate, and evaluating alternative
+models and inference configurations.
+
+The current observed latency is specific to the tested environment
+and is not a benchmark intended to represent performance across
+hardware configurations.
+
 ## Tradeoffs and evolution
 
 The local-first stack keeps the project runnable without paid hosted model or search APIs and makes its data and dependencies easier to inspect. SQLite simplifies persistence for a single-user workload; it is not presented as a multi-tenant database strategy. FTS5 provides lexical retrieval rather than embedding-based semantic search. SearXNG reduces dependence on a single commercial search API, while result quality, availability and coverage remain dependent on the configured search engines. Ollama makes model execution local, with quality and latency dependent on the selected model and machine.

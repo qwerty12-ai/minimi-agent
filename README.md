@@ -577,6 +577,17 @@ The system is designed to make evidence and uncertainty more explicit, not to el
 
 ---
 
+### Performance considerations
+
+MiniMi Agent relies on local LLM inference through Ollama.
+Response times vary depending on the model, inference configuration,
+available system resources, and research workload.
+
+The current development environment runs inference on CPU-based
+hardware, which can result in slower responses than GPU-accelerated
+or more powerful systems. Observed response latency is environment-
+dependent and should not be interpreted as a universal benchmark.
+
 ## Future Directions
 
 Potential architectural extensions include:

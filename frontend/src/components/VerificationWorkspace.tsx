@@ -109,7 +109,48 @@ function VerificationWorkspace() {
   }
 
   useEffect(() => {
-    void loadSnapshots()
+    let cancelled = false
+
+    async function initializeSnapshots() {
+      setSnapshotError(null)
+
+      try {
+        const response = await getResearchSnapshots(100)
+
+        if (cancelled) return
+
+        setSnapshots(response.snapshots)
+
+        setSelectedSnapshotId((current) => {
+          if (
+            current &&
+            response.snapshots.some((snapshot) => snapshot.id === current)
+          ) {
+            return current
+          }
+
+          return response.snapshots[0]?.id ?? ''
+        })
+      } catch (error) {
+        if (cancelled) return
+
+        setSnapshotError(
+          error instanceof Error
+            ? error.message
+            : 'Failed to load historical research snapshots.',
+        )
+      } finally {
+        if (!cancelled) {
+          setLoadingSnapshots(false)
+        }
+      }
+    }
+
+    void initializeSnapshots()
+
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   async function handleVerify() {
