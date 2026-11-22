@@ -129,7 +129,7 @@ function App() {
   }
 
   return (
-    <div className="flex min-h-screen bg-[#0c0d10] text-[#e5e7eb]">
+    <div className="flex min-h-screen min-h-[100dvh] overflow-hidden bg-[var(--surface-base)] text-[var(--text-primary)]">
       <Sidebar
         loading={loading}
         onNewChat={startNewChat}
@@ -137,71 +137,96 @@ function App() {
         onWorkspaceChange={changeWorkspace}
       />
 
-      <main className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-16 shrink-0 items-center justify-between border-b border-[#242630] px-5 md:px-8">
-          <div className="flex items-center gap-2 text-sm">
-            <span className="text-gray-500">Workspace</span>
-            <span className="text-gray-700">/</span>
-            <strong className="text-gray-200">
+      <main className="flex min-w-0 flex-1 flex-col overflow-hidden pb-14 md:pb-0">
+        <header className="flex h-14 shrink-0 items-center justify-between border-b border-[var(--border-subtle)] px-4 sm:px-6">
+          <div className="flex min-w-0 items-center gap-2 text-sm">
+            <span className="hidden text-[var(--text-muted)] sm:inline">
+              MiniMi
+            </span>
+
+            <span className="hidden text-[var(--border-strong)] sm:inline">
+              /
+            </span>
+
+            <span className="truncate font-medium text-[var(--text-primary)]">
               {workspaceName[activeWorkspace]}
-            </strong>
+            </span>
           </div>
 
-          <div className="flex items-center gap-2 rounded-full border border-[#254333] bg-[#14251c] px-3 py-1.5 text-[10px] font-semibold tracking-wider text-emerald-400">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-            LOCAL
+          <div className="flex shrink-0 items-center gap-2 text-xs text-[var(--text-muted)]">
+            <span className="h-1.5 w-1.5 rounded-full bg-[var(--status-green)]" />
+            <span>Local environment</span>
           </div>
         </header>
 
-        <section className="flex min-h-0 flex-1 flex-col">
+        <section className="flex min-h-0 flex-1 flex-col overflow-hidden">
           {activeWorkspace === 'research' ? (
             <>
               {messages.length === 0 ? (
-                <WelcomeScreen />
+                <div className="min-h-0 flex-1 overflow-y-auto">
+                  <WelcomeScreen />
+                </div>
               ) : (
-                <div className="mx-auto w-full max-w-4xl flex-1 overflow-y-auto px-5 py-8 md:px-8">
-                  <MessageList messages={messages} loading={loading} />
+                <div className="min-h-0 flex-1 overflow-y-auto">
+                  <div className="mx-auto w-full max-w-4xl px-4 py-6 sm:px-6 sm:py-8">
+                    <MessageList messages={messages} loading={loading} />
+                  </div>
                 </div>
               )}
 
               {error && (
-                <ErrorBanner
-                  error={error}
-                  onDismiss={() => setError(null)}
-                />
+                <div className="shrink-0">
+                  <ErrorBanner
+                    error={error}
+                    onDismiss={() => setError(null)}
+                  />
+                </div>
               )}
 
-              <ChatInput
-                message={message}
-                onMessageChange={setMessage}
-                loading={loading}
-                onSubmit={handleSubmit}
-              />
+              <div className="shrink-0">
+                <ChatInput
+                  message={message}
+                  onMessageChange={setMessage}
+                  loading={loading}
+                  onSubmit={handleSubmit}
+                />
+              </div>
             </>
           ) : activeWorkspace === 'history' ? (
             <>
-              <HistoryWorkspace
-                loading={loading}
-                onSelectConversation={selectConversation}
-              />
+              <div className="min-h-0 flex-1 overflow-y-auto">
+                <HistoryWorkspace
+                  loading={loading}
+                  onSelectConversation={selectConversation}
+                />
+              </div>
 
               {error && (
-                <ErrorBanner
-                  error={error}
-                  onDismiss={() => setError(null)}
-                />
+                <div className="shrink-0">
+                  <ErrorBanner
+                    error={error}
+                    onDismiss={() => setError(null)}
+                  />
+                </div>
               )}
             </>
           ) : activeWorkspace === 'memory' ? (
-            <MemoryWorkspace />
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              <MemoryWorkspace />
+            </div>
           ) : (
-            <VerificationWorkspace />
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              <VerificationWorkspace />
+            </div>
           )}
         </section>
 
-        <footer className="flex shrink-0 items-center justify-between border-t border-[#242630] px-5 py-3 text-[10px] text-gray-600 md:px-8">
+        <footer className="flex shrink-0 items-center justify-between border-t border-[var(--border-subtle)] px-4 py-2.5 text-[10px] text-[var(--text-muted)] sm:px-6">
           <span>MiniMi Agent</span>
-          <span>Evidence-first intelligence</span>
+
+          <span className="hidden sm:inline">
+            Research · Memory · Verification
+          </span>
         </footer>
       </main>
     </div>

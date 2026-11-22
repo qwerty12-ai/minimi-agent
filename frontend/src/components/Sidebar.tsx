@@ -7,6 +7,13 @@ interface SidebarProps {
   ) => void
 }
 
+const navigation = [
+  { id: 'research', label: 'Research', symbol: '⌕' },
+  { id: 'history', label: 'History', symbol: '◷' },
+  { id: 'memory', label: 'Memory', symbol: '◇' },
+  { id: 'verification', label: 'Verification', symbol: '↔' },
+] as const
+
 function Sidebar({
   loading,
   onNewChat,
@@ -17,80 +24,111 @@ function Sidebar({
     workspace: 'research' | 'history' | 'memory' | 'verification',
   ) =>
     activeWorkspace === workspace
-      ? 'flex w-full items-center gap-3 rounded-lg bg-[#24232f] px-3 py-2.5 text-left text-sm text-violet-300 transition'
-      : 'flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm text-gray-400 transition hover:bg-[#1b1c23] hover:text-gray-200'
+      ? 'flex w-full items-center gap-3 border-l-2 border-[var(--accent)] bg-[var(--surface-hover)] px-3 py-2.5 text-left text-sm text-[var(--text-primary)]'
+      : 'flex w-full items-center gap-3 border-l-2 border-transparent px-3 py-2.5 text-left text-sm text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]'
 
   return (
-    <aside className="hidden w-64 shrink-0 flex-col border-r border-[#242630] bg-[#101116] p-5 md:flex">
-      <div className="mb-8 flex items-center gap-3">
-        <div className="grid h-10 w-10 place-items-center rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 font-semibold text-white">
-          M
-        </div>
-        <div>
-          <h2 className="font-semibold text-white">MiniMi</h2>
-          <span className="text-xs text-gray-500">Research Agent</span>
-        </div>
-      </div>
-
-      <button
-        onClick={onNewChat}
-        disabled={loading}
-        className="mb-8 flex items-center gap-2 rounded-xl border border-[#343541] bg-[#1b1c23] px-4 py-3 text-sm text-gray-200 transition hover:bg-[#252630] disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        <span className="text-lg">＋</span>
-        New conversation
-      </button>
-
-      <div>
-        <span className="mb-3 block text-[10px] font-semibold tracking-[0.18em] text-gray-500">
-          WORKSPACE
-        </span>
-
-        <nav className="space-y-1">
-          <button
-            onClick={() => onWorkspaceChange('research')}
-            className={workspaceClass('research')}
-          >
-            <span>◈</span> Research
-          </button>
-
-          <button
-            onClick={() => onWorkspaceChange('history')}
-            className={workspaceClass('history')}
-          >
-            <span>◷</span> History
-          </button>
-
-          <button
-            onClick={() => onWorkspaceChange('memory')}
-            className={workspaceClass('memory')}
-          >
-            <span>⌘</span> Memory
-          </button>
-
-          <button
-            onClick={() => onWorkspaceChange('verification')}
-            className={workspaceClass('verification')}
-          >
-            <span>⇄</span> Verification
-          </button>
-        </nav>
-      </div>
-
-      <div className="mt-auto border-t border-[#242630] pt-4">
-        <div className="flex items-center gap-3">
-          <div className="grid h-9 w-9 place-items-center rounded-full bg-[#292a35] text-sm">
+    <>
+      {/* Desktop sidebar */}
+      <aside className="hidden w-60 shrink-0 flex-col border-r border-[var(--border-subtle)] bg-[var(--surface-sidebar)] md:flex">
+        <div className="flex h-14 items-center gap-3 border-b border-[var(--border-subtle)] px-5">
+          <div className="grid h-7 w-7 place-items-center border border-[var(--border-strong)] text-xs font-semibold text-[var(--accent)]">
             M
           </div>
+
           <div className="min-w-0">
-            <strong className="block text-sm text-gray-200">
-              MiniMi Agent
-            </strong>
-            <span className="text-xs text-gray-500">Local workspace</span>
+            <div className="text-sm font-semibold tracking-tight text-[var(--text-primary)]">
+              MiniMi
+            </div>
+            <div className="text-[10px] text-[var(--text-muted)]">
+              Research workspace
+            </div>
           </div>
         </div>
+
+        <div className="px-4 pt-5">
+          <button
+            onClick={onNewChat}
+            disabled={loading}
+            className="flex w-full items-center justify-between border border-[var(--border-strong)] bg-[var(--surface-raised)] px-3 py-2.5 text-sm text-[var(--text-primary)] transition-colors hover:bg-[var(--surface-hover)] disabled:opacity-50"
+          >
+            <span className="flex items-center gap-2">
+              <span className="text-[var(--accent)]">+</span>
+              New research
+            </span>
+
+            <span className="text-[10px] text-[var(--text-muted)]">
+              N
+            </span>
+          </button>
+        </div>
+
+        <div className="px-4 pt-7">
+          <span className="mb-3 block px-3 text-[10px] font-medium uppercase tracking-[0.14em] text-[var(--text-muted)]">
+            Workspaces
+          </span>
+
+          <nav className="space-y-1">
+            {navigation.map((item) => (
+              <button
+                key={item.id}
+                onClick={() =>
+                  onWorkspaceChange(item.id)
+                }
+                disabled={loading}
+                className={workspaceClass(item.id)}
+              >
+                <span className="w-5 text-center text-base text-[var(--accent)]">
+                  {item.symbol}
+                </span>
+
+                <span>{item.label}</span>
+              </button>
+            ))}
+          </nav>
+        </div>
+
+        <div className="mt-auto border-t border-[var(--border-subtle)] p-4">
+          <div className="flex items-center gap-2">
+            <span className="h-2 w-2 rounded-full bg-[var(--status-green)]" />
+
+            <div>
+              <div className="text-xs text-[var(--text-secondary)]">
+                Running locally
+              </div>
+
+              <div className="text-[10px] text-[var(--text-muted)]">
+                Private workspace
+              </div>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      {/* Mobile navigation */}
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--border-subtle)] bg-[var(--surface-sidebar)] md:hidden">
+        <nav className="grid grid-cols-4">
+          {navigation.map((item) => (
+            <button
+              key={item.id}
+              onClick={() => onWorkspaceChange(item.id)}
+              disabled={loading}
+              className={`flex flex-col items-center gap-1 px-1 py-2.5 text-[10px] transition-colors ${
+                activeWorkspace === item.id
+                  ? 'text-[var(--accent)]'
+                  : 'text-[var(--text-muted)]'
+              }`}
+            >
+              <span className="text-lg leading-none">
+                {item.symbol}
+              </span>
+
+              <span>{item.label}</span>
+            </button>
+          ))}
+        </nav>
       </div>
-    </aside>
+    </>
   )
 }
 
