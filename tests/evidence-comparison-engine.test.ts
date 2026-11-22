@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   EvidenceComparisonEngine,
-} from "../src/agent/evidence-comparsion-engine.js";
+} from "../src/agent/evidence-comparison-engine.js";
 
 import type { ResearchSnapshot } from "../src/memory/types.js";
 import type { ComparisonResult } from "../src/agent/verification-types.js";
@@ -235,5 +235,32 @@ describe("EvidenceComparisonEngine", () => {
         "2026-11-12T12:00:00.000Z",
       );
     }
+  });
+
+  it("returns inconclusive for invalid evidence URLs found only in the current snapshot", () => {
+    const invalidCurrent: ResearchSnapshot = {
+      ...current,
+      results: [
+        {
+          title: "Invalid",
+          url: "not-a-valid-url",
+          snippet: "Current content",
+          source: "Example",
+        },
+      ],
+    };
+
+    const emptyHistorical: ResearchSnapshot = {
+      ...historical,
+      results: [],
+    };
+
+    const results: ComparisonResult[] = createEngine().compare(
+      emptyHistorical,
+      invalidCurrent,
+    );
+
+    expect(results).toHaveLength(1);
+    expect(results[0]?.status).toBe("inconclusive");
   });
 });

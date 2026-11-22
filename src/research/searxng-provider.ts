@@ -1,4 +1,9 @@
-import type { SearchProvider, SearchRequest, SearchResponse, SearchResult } from "./types.js";
+import type {
+    SearchProvider,
+    SearchRequest,
+    SearchResponse,
+    SearchResult
+} from "./types.js";
 
 interface SearXNGResult {
     title?: unknown;
@@ -16,14 +21,56 @@ interface SearXNGResponse {
 export interface SearXNGProviderConfig {
     baseUrl?: string;
     timeoutMs?: number;
-    fetchImpl?: typeof fetch
+    fetchImpl?: typeof fetch;
 }
+
+const MAX_TITLE_LENGTH = 500;
+const MAX_SNIPPET_LENGTH = 5000;
+const MAX_SOURCE_LENGTH = 200;
 
 export class SearXNGProviderError extends Error {
     constructor(message: string) {
         super(message);
-        this.name = "SearXNGProvideError";
+        this.name = "SearXNGProviderError";
     }
+}
+
+function normalizePublishedAt(value: unknown): string | undefined {
+    if (typeof value !== "string") {
+        return undefined;
+    }
+
+    const timestamp = value.trim();
+
+    if (!/(?:Z|[+-]\d{2}:\d{2})$/i.test(timestamp)) {
+        return undefined;
+    }
+
+    const milliseconds = Date.parse(timestamp);
+
+    if (!Number.isFinite(milliseconds)) {
+        return undefined;
+    }
+
+    return new Date(milliseconds).toISOString();
+}
+
+function toHttpUrl(value: string): string | undefined {
+    try {
+        const parsed = new URL(value.trim());
+
+        if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+            return undefined;
+        }
+
+        return parsed.toString();
+    } catch {
+        return undefined;
+    }
+}
+
+function clip(value: string, maxLength: number): string {
+    return value.length > maxLength ? value.slice(0, maxLength) : value;
 }
 
 export class SearXNGProvider implements SearchProvider {
@@ -136,24 +183,42 @@ export class SearXNGProvider implements SearchProvider {
                         typeof (item as SearXNGResult).url === "string"
                     );
                 })
-                .map((item) => ({
-                    title: item.title as string,
-                    url: item.url as string,
-                    snippet:
-                        typeof item.content === "string"
-                            ? item.content
-                            : "",
-                    source:
+                .flatMap((item): SearchResult[] => {
+                    const title = clip(
+                        (item.title as string).trim(),
+                        MAX_TITLE_LENGTH
+                    );
+                    const resultUrl = toHttpUrl(item.url as string);
+
+                    if (title.length === 0 || !resultUrl) {
+                        return [];
+                    }
+
+                    const engine =
                         typeof item.engine === "string"
-                            ? item.engine
+                            ? item.engine.trim()
+                            : "";
+
+                    const publishedAt = normalizePublishedAt(
+                        item.publishedDate
+                    );
+
+                    return [{
+                        title,
+                        url: resultUrl,
+                        snippet:
+                            typeof item.content === "string"
+                                ? clip(item.content, MAX_SNIPPET_LENGTH)
+                                : "",
+                        source: engine.length > 0
+                            ? clip(engine, MAX_SOURCE_LENGTH)
                             : "SearXNG",
-                    ...(typeof item.publishedDate === "string"
-                        ? { publishedAt: item.publishedDate }
-                        : {}),
-                    ...(typeof item.score === "number"
-                        ? { score: item.score }
-                        : {}),
-                }));
+                        ...(publishedAt ? { publishedAt } : {}),
+                        ...(typeof item.score === "number"
+                            ? { score: item.score }
+                            : {}),
+                    }];
+                });
 
             return {
                 query: request.query,

@@ -13,7 +13,7 @@ import { EvidenceAssembler } from "./evidence-assembler.js";
 import { GroundedSynthesizer } from "./grounded-synthesizer.js";
 import { HistoricalResearchRetriever } from "./historical-research-retriever.js";
 import { FreshResearchVerifier } from "./fresh-research-verifier.js";
-import { EvidenceComparisonEngine } from "./evidence-comparsion-engine.js";
+import { EvidenceComparisonEngine } from "./evidence-comparison-engine.js";
 
 import {
   parseAgentExecutionRequest,
@@ -199,35 +199,19 @@ export function createAgent(options: CreateAgentOptions = {}) {
     }
   }
 
-  async function persistVerification(
-    result: VerificationResult,
+  async function persistVerificationBundle(
+    comparisons: ComparisonResult[],
+    verification: VerificationResult,
   ): Promise<void> {
     try {
-      await infrastructure.verificationRepository.saveVerificationResult(
-        result,
+      await infrastructure.verificationRepository.saveVerificationBundle(
+        comparisons,
+        verification,
       );
     } catch (error) {
       throw new AgentPersistenceError(
-        "save_verification_result",
-        "Failed to persist verification result.",
-        { cause: error },
-      );
-    }
-  }
-
-  async function persistComparisons(
-    results: ComparisonResult[],
-  ): Promise<void> {
-    try {
-      for (const result of results) {
-        await infrastructure.verificationRepository.saveComparisonResult(
-          result,
-        );
-      }
-    } catch (error) {
-      throw new AgentPersistenceError(
-        "save_comparison_results",
-        "Failed to persist comparison results.",
+        "save_verification_bundle",
+        "Failed to persist verification bundle.",
         { cause: error },
       );
     }
@@ -376,8 +360,6 @@ export function createAgent(options: CreateAgentOptions = {}) {
         currentSnapshot,
       );
 
-      await persistComparisons(comparisons);
-
       const claim = (
         validatedRequest.question ?? historical.query
       ).slice(0, 10000);
@@ -416,7 +398,10 @@ export function createAgent(options: CreateAgentOptions = {}) {
         verifiedAt: clock().toISOString(),
       };
 
-      await persistVerification(verification);
+      await persistVerificationBundle(
+        comparisons,
+        verification,
+      );
 
       return {
         verification,

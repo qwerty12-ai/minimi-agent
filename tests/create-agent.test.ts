@@ -140,7 +140,7 @@ describe("Agent execution pipeline", () => {
             });
 
             expect(response).toEqual({
-                answer: "The available evidence is insufficient to establish a reliable answer.",
+                answer: "I couldn't find enough reliable information to answer this question confidently. Try narrowing your question or using more specific search terms.",
                 intent: "RESEARCH",
                 status: "insufficient_evidence",
                 citations: [],

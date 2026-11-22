@@ -291,7 +291,7 @@ describe("GroundedSynthesizer", () => {
     );
   });
 
-  it("rejects a response with a different intent", async () => {
+  it("uses the requested intent when the model returns a different valid intent", async () => {
     const wrongIntentResponse: AgentResponse = {
       ...validResponse,
       intent: "RECALL",
@@ -303,15 +303,14 @@ describe("GroundedSynthesizer", () => {
       () => new Date(fixedDate),
     );
 
-    await expect(
-      synthesizer.synthesize(request),
-    ).rejects.toThrow(
-      "LLM returned a different intent from the synthesis request.",
-    );
+    const response = await synthesizer.synthesize(request);
+
+    expect(response.intent).toBe("RESEARCH");
+    expect(response.status).toBe("supported");
   });
 
-  it("rejects an unexpected generation timestamp", async () => {
-    const wrongTimestampResponse: AgentResponse = {
+  it("uses the application timestamp instead of the model timestamp", async () => {
+    const wrongTimestampResponse = {
       ...validResponse,
       generatedAt: "2026-11-10T10:00:00.000Z",
     };
@@ -322,14 +321,26 @@ describe("GroundedSynthesizer", () => {
       () => new Date(fixedDate),
     );
 
-    await expect(
-      synthesizer.synthesize(request),
-    ).rejects.toThrow(
-      "LLM returned an unexpected generation timestamp.",
-    );
+    const response = await synthesizer.synthesize(request);
+
+    expect(response.generatedAt).toBe(fixedDate);
   });
 
-  it("rejects insufficient evidence responses containing citations", async () => {
+  it("does not require the model to return a generation timestamp", async () => {
+    const { generatedAt: _ignored, ...modelResponse } = validResponse;
+
+    const llm = createLLM(modelResponse);
+    const synthesizer = new GroundedSynthesizer(
+      llm,
+      () => new Date(fixedDate),
+    );
+
+    const response = await synthesizer.synthesize(request);
+
+    expect(response.generatedAt).toBe(fixedDate);
+  });
+
+  it("normalizes insufficient evidence responses containing citations", async () => {
     const invalidResponse = {
       answer: "There is insufficient evidence.",
       intent: "RESEARCH",
@@ -348,8 +359,122 @@ describe("GroundedSynthesizer", () => {
       () => new Date(fixedDate),
     );
 
-    await expect(
-      synthesizer.synthesize(request),
-    ).rejects.toBeInstanceOf(InvalidSynthesisError);
+    const result = await synthesizer.synthesize(request);
+
+    expect(result.status).toBe("insufficient_evidence");
+    expect(result.answer).toBe(
+      "I couldn't find enough reliable information to answer this question confidently. Try narrowing your question or using more specific search terms.",
+    );
+    expect(result.citations).toEqual([]);
   });
+
+  it("reassesses short substantive answers labeled insufficient evidence", async () => {
+    const initialResponse = {
+      answer: "The project codename is Amber Kestrel.",
+      intent: "RECALL",
+      status: "insufficient_evidence",
+      citations: [],
+    };
+
+    const recoveredResponse = {
+      answer: "The project codename is Amber Kestrel.",
+      intent: "RECALL",
+      status: "supported",
+      citations: [
+        {
+          evidenceId: "memory_record:memory-1",
+        },
+      ],
+    };
+
+    const llm = {
+      generateStructured: vi.fn()
+        .mockResolvedValueOnce(initialResponse)
+        .mockResolvedValueOnce(recoveredResponse),
+    } satisfies LLMProvider;
+
+    const recallRequest: SynthesisRequest = {
+      question: "What project codename did I tell you earlier?",
+      intent: "RECALL",
+      evidence: {
+        collectedAt: fixedDate,
+        items: [
+          {
+            id: "memory_record:memory-1",
+            sourceType: "memory_record",
+            sourceId: "memory-1",
+            content: "The project codename is Amber Kestrel.",
+            createdAt: fixedDate,
+          },
+        ],
+      },
+    };
+
+    const synthesizer = new GroundedSynthesizer(
+      llm,
+      () => new Date(fixedDate),
+    );
+
+    const result = await synthesizer.synthesize(recallRequest);
+
+    expect(llm.generateStructured).toHaveBeenCalledTimes(2);
+    expect(result.answer).toBe(
+      "The project codename is Amber Kestrel.",
+    );
+    expect(result.status).toBe("supported");
+    expect(result.citations).toEqual([
+      {
+        evidenceId: "memory_record:memory-1",
+      },
+    ]);
+  });
+
+  it("normalizes machine-readable insufficient-evidence answers", async () => {
+      const insufficientResponse: AgentResponse = {
+        answer: "Insufficient_evidence",
+        intent: "RESEARCH",
+        status: "insufficient_evidence",
+        citations: [],
+        generatedAt: fixedDate,
+      };
+
+      const llm = createLLM(insufficientResponse);
+      const synthesizer = new GroundedSynthesizer(
+        llm,
+        () => new Date(fixedDate),
+      );
+
+      const result = await synthesizer.synthesize(request);
+
+      expect(result.status).toBe("insufficient_evidence");
+      expect(result.answer).toBe(
+        "I couldn't find enough reliable information to answer this question confidently. Try narrowing your question or using more specific search terms.",
+      );
+      expect(result.citations).toEqual([]);
+    });
+
+    it("normalizes insufficient-evidence answers even when the model provides misleading text", async () => {
+      const insufficientResponse: AgentResponse = {
+        answer:
+          "The answer is definitely 42, but I cannot cite anything.",
+        intent: "RESEARCH",
+        status: "insufficient_evidence",
+        citations: [],
+        generatedAt: fixedDate,
+      };
+
+      const llm = createLLM(insufficientResponse);
+      const synthesizer = new GroundedSynthesizer(
+        llm,
+        () => new Date(fixedDate),
+      );
+
+      const result = await synthesizer.synthesize(request);
+
+      expect(result.status).toBe("insufficient_evidence");
+      expect(result.answer).toBe(
+        "I couldn't find enough reliable information to answer this question confidently. Try narrowing your question or using more specific search terms.",
+      );
+      expect(result.citations).toEqual([]);
+    });
 });

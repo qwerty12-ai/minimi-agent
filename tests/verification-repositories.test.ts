@@ -231,4 +231,54 @@ describe("SQLiteVerificationRepository", () => {
       verifications.saveComparisonResult(invalid),
     ).rejects.toThrow();
   });
+
+  it("atomically saves comparisons and verification results", async () => {
+    await verifications.saveVerificationBundle(
+      [comparison],
+      verification,
+    );
+
+    await expect(
+      verifications.findComparisonResults(
+        "snapshot-old",
+        "snapshot-current",
+      ),
+    ).resolves.toEqual([comparison]);
+
+    await expect(
+      verifications.findVerificationResult("verification-1"),
+    ).resolves.toEqual(verification);
+  });
+
+  it("rolls back comparison inserts when verification persistence fails", async () => {
+    // Deliberately pre-insert the verification to trigger a
+    // duplicate primary-key failure inside the transaction.
+    await verifications.saveVerificationResult(verification);
+
+    const newComparison: ComparisonResult = {
+      ...comparison,
+      id: "comparison-rollback-test",
+    };
+
+    await expect(
+      verifications.saveVerificationBundle(
+        [newComparison],
+        verification,
+      ),
+    ).rejects.toThrow();
+
+    // The comparison INSERT was attempted inside the transaction,
+    // but the failed verification INSERT must roll it back.
+    await expect(
+      verifications.findComparisonResults(
+        "snapshot-old",
+        "snapshot-current",
+      ),
+    ).resolves.toEqual([]);
+
+    // The original verification remains intact.
+    await expect(
+      verifications.findVerificationResult("verification-1"),
+    ).resolves.toEqual(verification);
+  });
 });
