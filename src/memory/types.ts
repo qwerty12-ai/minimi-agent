@@ -57,6 +57,8 @@ export interface ConversationRepository {
 
   findById(id: string): Promise<Conversation | null>;
 
+  list(limit?: number): Promise<Conversation[]>;
+
   appendMessage(message: ConversationMessage): Promise<void>;
 
   getMessages(

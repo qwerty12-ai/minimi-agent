@@ -222,6 +222,52 @@ export function createAgent(options: CreateAgentOptions = {}) {
       return planRequest(message, classifier);
     },
 
+    // M7.4: Conversation history listing
+    async listConversations(limit = 50) {
+      try {
+        return await infrastructure.memoryStore.conversations.list(
+          limit,
+        );
+      } catch (error) {
+        throw new AgentPersistenceError(
+          "list_conversations",
+          "Failed to retrieve conversation history.",
+          { cause: error },
+        );
+      }
+    },
+
+    // M7.4: Retrieve one conversation and its messages
+    async getConversation(id: string): Promise<{
+      conversation: Conversation;
+      messages: ConversationMessage[];
+    } | null> {
+      try {
+        const conversation =
+          await infrastructure.memoryStore.conversations.findById(id);
+
+        if (!conversation) {
+          return null;
+        }
+
+        const messages =
+          await infrastructure.memoryStore.conversations.getMessages(
+            id,
+          );
+
+        return {
+          conversation,
+          messages,
+        };
+      } catch (error) {
+        throw new AgentPersistenceError(
+          "get_conversation",
+          "Failed to retrieve conversation.",
+          { cause: error },
+        );
+      }
+    },
+
     async execute(
       request: AgentExecutionRequest,
     ): Promise<AgentExecutionResult> {

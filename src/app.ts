@@ -3,7 +3,7 @@ import { createAgent } from "./agent/create-agent.js";
 import { parseAgentExecutionRequest } from "./agent/orchestration-schema.js";
 
 export function buildApp(): FastifyInstance {
-  const app = Fastify({
+  const app: FastifyInstance = Fastify({
     logger: {
       level: process.env.NODE_ENV === "test" ? "silent" : "info",
     },
@@ -21,6 +21,77 @@ export function buildApp(): FastifyInstance {
     service: "minimi-agent",
   }));
 
+  // List persisted conversations.
+  app.get("/api/conversations", async (request, reply) => {
+    const query = request.query as { limit?: string };
+
+    let limit = 50;
+
+    if (query.limit !== undefined) {
+      const parsedLimit = Number(query.limit);
+
+      if (
+        !Number.isInteger(parsedLimit) ||
+        parsedLimit < 1 ||
+        parsedLimit > 100
+      ) {
+        return reply.status(400).send({
+          error: "Invalid request",
+          message: "limit must be an integer between 1 and 100.",
+        });
+      }
+
+      limit = parsedLimit;
+    }
+
+    try {
+      const conversations = await getAgent().listConversations(limit);
+
+      return reply.status(200).send({
+        conversations,
+      });
+    } catch (error) {
+      request.log.error(error);
+
+      return reply.status(500).send({
+        error: "Conversation retrieval failed",
+        message: "MiniMi could not retrieve conversation history.",
+      });
+    }
+  });
+
+  // Retrieve one conversation and its messages.
+  app.get("/api/conversations/:id", async (request, reply) => {
+    const params = request.params as { id: string };
+
+    if (!params.id || params.id.trim().length === 0) {
+      return reply.status(400).send({
+        error: "Invalid request",
+        message: "A valid conversation ID is required.",
+      });
+    }
+
+    try {
+      const result = await getAgent().getConversation(params.id);
+
+      if (!result) {
+        return reply.status(404).send({
+          error: "Conversation not found",
+          message: "The requested conversation does not exist.",
+        });
+      }
+
+      return reply.status(200).send(result);
+    } catch (error) {
+      request.log.error(error);
+
+      return reply.status(500).send({
+        error: "Conversation retrieval failed",
+        message: "MiniMi could not retrieve the requested conversation.",
+      });
+    }
+  });
+
   app.post("/api/agent/execute", async (request, reply) => {
     let validatedRequest;
 
@@ -36,8 +107,9 @@ export function buildApp(): FastifyInstance {
     try {
       const result = await getAgent().execute({
         message: validatedRequest.message,
-        ...(validatedRequest.conversationId)
-        ? {conversationId: validatedRequest.conversationId} : {},
+        ...(validatedRequest.conversationId
+          ? { conversationId: validatedRequest.conversationId }
+          : {}),
       });
 
       return reply.status(200).send(result);
