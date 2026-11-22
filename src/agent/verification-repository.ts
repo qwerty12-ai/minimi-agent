@@ -20,4 +20,9 @@ export interface VerificationRepository {
     historicalSnapshotId: string,
     currentSnapshotId: string,
   ): Promise<ComparisonResult[]>;
+
+  saveVerificationBundle(
+    comparisons: ComparisonResult[],
+    verification: VerificationResult,
+  ): Promise<void>;
 }

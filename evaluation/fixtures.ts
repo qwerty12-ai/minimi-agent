@@ -139,22 +139,23 @@ export const evaluationFixtures: Record<string, EvaluationFixture> = {
     currentEvidence: [],
   },
 
-  historical_comparison: {
-    researchResults: [],
-    memoryEvidence: [],
-    historicalEvidence: [
+  memory_research_comparison: {
+    researchResults: [
       {
         title: "Product Pricing",
-        content: "The monthly subscription costs $20.",
+        url: "https://example.com/pricing",
+        snippet: "The monthly subscription currently costs $25.",
+        source: "current-pricing",
+      },
+    ],
+    memoryEvidence: [
+      {
+        title: "Previous conversation",
+        content: "The user previously mentioned that the monthly subscription cost $20.",
         sourceUrl: "https://example.com/pricing",
       },
     ],
-    currentEvidence: [
-      {
-        title: "Product Pricing",
-        content: "The monthly subscription costs $25.",
-        sourceUrl: "https://example.com/pricing",
-      },
-    ],
+    historicalEvidence: [],
+    currentEvidence: [],
   },
 };

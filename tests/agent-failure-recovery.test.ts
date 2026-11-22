@@ -223,7 +223,7 @@ describe("Agent Failure Recovery", () => {
       infrastructure.close();
     }
   });
-  it("preserves the fresh snapshot but does not create verification records when comparison persistence fails", async () => {
+  it("preserves the fresh snapshot but rolls back the verification bundle when comparison persistence fails", async () => {
     const infrastructure = createInfrastructure();
 
     const historical = {
@@ -271,14 +271,13 @@ describe("Agent Failure Recovery", () => {
       ],
     });
 
-    const persistenceError = new Error(
-      "Comparison database write failed.",
-    );
-
-    const saveComparison = vi.spyOn(
-      infrastructure.verificationRepository,
-      "saveComparisonResult",
-    ).mockRejectedValue(persistenceError);
+    infrastructure.database.exec(`
+    CREATE TRIGGER fail_comparison_insert
+    BEFORE INSERT ON comparison_results
+    BEGIN
+      SELECT RAISE(ABORT, 'Comparison database write failed.');
+    END;
+  `);
 
     const agent = createAgent({
       infrastructure,
@@ -293,8 +292,7 @@ describe("Agent Failure Recovery", () => {
         }),
       ).rejects.toMatchObject({
         name: "AgentPersistenceError",
-        operation: "save_comparison_results",
-        cause: persistenceError,
+        operation: "save_verification_bundle",
       });
 
       const snapshots =
@@ -303,8 +301,6 @@ describe("Agent Failure Recovery", () => {
         );
 
       expect(snapshots).toHaveLength(2);
-
-      expect(saveComparison).toHaveBeenCalledOnce();
 
       const comparisons =
         await infrastructure.verificationRepository.findComparisonResults(
@@ -313,13 +309,20 @@ describe("Agent Failure Recovery", () => {
         );
 
       expect(comparisons).toEqual([]);
+
+      const verifications =
+        await infrastructure.verificationRepository.findVerificationResult(
+          "nonexistent-verification",
+        );
+
+      expect(verifications).toBeNull();
     } finally {
       agent.close();
       infrastructure.close();
     }
   });
 
-  it("preserves snapshots and comparisons when verification persistence fails", async () => {
+  it("preserves the fresh snapshot but rolls back comparisons when verification persistence fails", async () => {
     const infrastructure = createInfrastructure();
 
     const historical = {
@@ -367,14 +370,13 @@ describe("Agent Failure Recovery", () => {
       ],
     });
 
-    const persistenceError = new Error(
-      "Verification database write failed.",
-    );
-
-    const saveVerification = vi.spyOn(
-      infrastructure.verificationRepository,
-      "saveVerificationResult",
-    ).mockRejectedValue(persistenceError);
+    infrastructure.database.exec(`
+    CREATE TRIGGER fail_verification_insert
+    BEFORE INSERT ON verification_results
+    BEGIN
+      SELECT RAISE(ABORT, 'Verification database write failed.');
+    END;
+  `);
 
     const agent = createAgent({
       infrastructure,
@@ -389,8 +391,7 @@ describe("Agent Failure Recovery", () => {
         }),
       ).rejects.toMatchObject({
         name: "AgentPersistenceError",
-        operation: "save_verification_result",
-        cause: persistenceError,
+        operation: "save_verification_bundle",
       });
 
       const snapshots =
@@ -406,17 +407,16 @@ describe("Agent Failure Recovery", () => {
           snapshots[1].id,
         );
 
-      expect(comparisons).toHaveLength(1);
+      // Comparisons must roll back because they were part of
+      // the same transaction as the failed verification insert.
+      expect(comparisons).toEqual([]);
 
-      expect(saveVerification).toHaveBeenCalledOnce();
+      const verifications =
+        await infrastructure.verificationRepository.findVerificationResult(
+          "nonexistent-verification",
+        );
 
-      const attemptedVerification = saveVerification.mock.calls[0][0];
-
-      await expect(
-        infrastructure.verificationRepository.findVerificationResult(
-          attemptedVerification.id,
-        ),
-      ).resolves.toBeNull();
+      expect(verifications).toBeNull();
     } finally {
       agent.close();
       infrastructure.close();

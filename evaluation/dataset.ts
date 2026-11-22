@@ -10,7 +10,7 @@ export type EvaluationOutcome =
   | "unchanged_evidence"
   | "changed_evidence"
   | "inconclusive_verification"
-  | "historical_comparison";
+  | "memory_research_comparison";
 
 export interface EvaluationCase {
   id: string;
@@ -140,15 +140,16 @@ export const evaluationDataset: EvaluationCase[] = [
   },
   {
     id: "E10",
-    name: "Historical and current comparison",
+    name: "Memory and current research comparison",
     intent: "COMPARE",
-    message: "Compare the historical product price with the current price.",
-    fixtureId: "historical_comparison",
-    expectedOutcome: "historical_comparison",
+    message: "Compare the product price I previously mentioned with its current price.",
+    fixtureId: "memory_research_comparison",
+    expectedOutcome: "memory_research_comparison",
     acceptanceCriteria: [
-      "Uses both historical and current evidence.",
-      "Identifies the price difference.",
-      "Preserves the distinction between historical and current information.",
+      "Uses retrieved memory and current research evidence.",
+      "Identifies the difference between the remembered and current prices.",
+      "Preserves the distinction between remembered information and fresh research.",
+      "Supports comparison claims with the supplied evidence.",
     ],
   },
 ];

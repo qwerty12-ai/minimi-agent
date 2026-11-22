@@ -165,6 +165,22 @@ describe("SQLiteMemorySearchRepository integration", () => {
     expect(results).toEqual([]);
   });
 
+  it("falls back to matching meaningful terms in natural-language recall queries", async () => {
+    createConversation();
+
+    insertMessage(
+      "message-recall",
+      "For this conversation, the project codename is Amber Kestrel. Please acknowledge this information."
+    );
+
+    const results = await repository.search(
+      "What project codename did I tell you earlier?"
+    );
+
+    expect(results).toHaveLength(1);
+    expect(results[0].content).toContain("Amber Kestrel");
+  });
+
   it("returns no results when no documents match", async () => {
     createConversation();
 

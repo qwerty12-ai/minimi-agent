@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { performance } from "node:perf_hooks";
+import { createHash } from "node:crypto";
 
 import { MemoryRetriever } from "../src/agent/memory-retriever.js";
 import { ResearchExecutor } from "../src/agent/research-executor.js";
@@ -15,6 +16,11 @@ import type { SearchResponse } from "../src/research/types.js";
 import type { AgentResponse, SynthesisRequest } from "../src/agent/orchestration-types.js";
 
 const timestamp = "2026-11-14T10:00:00.000Z";
+const sourceUrl = "https://www.typescriptlang.org/";
+
+const researchEvidenceId = `research_result:${createHash("sha256")
+  .update(sourceUrl)
+  .digest("hex")}`;
 
 const searchResponse: SearchResponse = {
   query: "TypeScript documentation",
@@ -23,7 +29,7 @@ const searchResponse: SearchResponse = {
   results: [
     {
       title: "TypeScript Documentation",
-      url: "https://www.typescriptlang.org/",
+      url: sourceUrl,
       snippet: "TypeScript is a strongly typed programming language.",
       source: "benchmark",
     },
@@ -37,13 +43,13 @@ const synthesisRequest: SynthesisRequest = {
     collectedAt: timestamp,
     items: [
       {
-        id: "research_result:https://www.typescriptlang.org/",
+        id: researchEvidenceId,
         sourceType: "research_result",
-        sourceId: "https://www.typescriptlang.org/",
+        sourceId: sourceUrl,
         content: "TypeScript is a strongly typed programming language.",
         createdAt: timestamp,
         title: "TypeScript Documentation",
-        sourceUrl: "https://www.typescriptlang.org/",
+        sourceUrl,
       },
     ],
   },
@@ -55,7 +61,7 @@ const synthesisResponse: AgentResponse = {
   status: "supported",
   citations: [
     {
-      evidenceId: "research_result:https://www.typescriptlang.org/",
+      evidenceId: researchEvidenceId,
     },
   ],
   generatedAt: timestamp,
@@ -189,7 +195,7 @@ describe("M6.4 Performance Benchmarks", () => {
             results: [
               {
                 title: "TypeScript Documentation",
-                url: "https://www.typescriptlang.org/",
+                url: sourceUrl,
                 content: "TypeScript is a strongly typed programming language.",
                 engine: "benchmark",
               },

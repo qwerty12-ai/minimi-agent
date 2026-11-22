@@ -14,7 +14,10 @@ interface MemorySearchRow {
     kind: string | null;
 }
 
-function buildSearchExpression(query: string): string {
+function buildSearchExpression(
+    query: string,
+    operator: "AND" | "OR" = "AND",
+): string {
     const terms = query
         .normalize("NFKC")
         .match(/[\p{L}\p{N}_]+/gu);
@@ -25,14 +28,14 @@ function buildSearchExpression(query: string): string {
 
     return terms
         .map((term) => `"${term.replace(/"/g, '""')}"`)
-        .join(" AND ");
+        .join(` ${operator} `);
 }
 
 export class SQLiteMemorySearchRepository
     implements MemorySearchRepository {
     constructor(
         private readonly database: SQLiteDatabase
-    ) { }
+    ) {}
 
     async search(
         query: string,
@@ -48,23 +51,39 @@ export class SQLiteMemorySearchRepository
             return [];
         }
 
-        const rows = this.database
-            .prepare(`
-        SELECT
-          documents.source_type,
-          documents.source_id,
-          documents.content,
-          documents.created_at,
-          documents.kind,
-          bm25(memory_search_index) AS rank
-        FROM memory_search_index
-        JOIN memory_search_documents AS documents
-          ON documents.id = memory_search_index.rowid
-        WHERE memory_search_index MATCH ?
-        ORDER BY rank ASC
-        LIMIT ?
-      `)
-            .all(expression, limit) as MemorySearchRow[];
+        const search = this.database.prepare(`
+            SELECT
+                documents.source_type,
+                documents.source_id,
+                documents.content,
+                documents.created_at,
+                documents.kind,
+                bm25(memory_search_index) AS rank
+            FROM memory_search_index
+            JOIN memory_search_documents AS documents
+                ON documents.id = memory_search_index.rowid
+            WHERE memory_search_index MATCH ?
+            ORDER BY rank ASC
+            LIMIT ?
+        `);
+
+        let rows = search.all(expression, limit) as MemorySearchRow[];
+
+        // Preserve precise matching first. Fall back to OR matching when
+        // natural-language questions contain words absent from stored text.
+        if (rows.length === 0) {
+            const fallbackExpression = buildSearchExpression(query, "OR");
+
+            if (
+                fallbackExpression.length > 0 &&
+                fallbackExpression !== expression
+            ) {
+                rows = search.all(
+                    fallbackExpression,
+                    limit
+                ) as MemorySearchRow[];
+            }
+        }
 
         return rows.map((row) => ({
             sourceType: row.source_type,
@@ -73,7 +92,11 @@ export class SQLiteMemorySearchRepository
             createdAt: row.created_at,
             rank: row.rank,
             ...(row.kind !== null
-                ? { kind: row.kind as NonNullable<MemorySearchResult["kind"]> }
+                ? {
+                    kind: row.kind as NonNullable<
+                        MemorySearchResult["kind"]
+                    >,
+                }
                 : {}),
         }));
     }

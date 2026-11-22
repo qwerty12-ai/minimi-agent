@@ -1,4 +1,10 @@
-import type { MemoryContext, ResearchContext, EvidenceItem, EvidencePackage } from "./orchestration-types.js";
+import { createHash } from "node:crypto";
+import type {
+  MemoryContext,
+  ResearchContext,
+  EvidenceItem,
+  EvidencePackage,
+} from "./orchestration-types.js";
 import { parseEvidencePackage } from "./orchestration-schema.js";
 
 export class EvidenceAssemblyError extends Error {
@@ -16,6 +22,14 @@ function createEvidenceId(
   sourceType: EvidenceItem["sourceType"],
   sourceId: string,
 ): string {
+  if (sourceType === "research_result") {
+    const hash = createHash("sha256")
+      .update(sourceId)
+      .digest("hex");
+
+    return `research_result:${hash}`;
+  }
+
   return `${sourceType}:${sourceId}`;
 }
 

@@ -1,6 +1,13 @@
-import { describe, expect, it, vi } from "vitest";
-import { EvidenceAssembler, EvidenceAssemblyError } from "../src/agent/evidence-assembler.js";
-import type { MemoryContext, ResearchContext } from "../src/agent/orchestration-types.js";
+import { createHash } from "node:crypto";
+import { describe, expect, it } from "vitest";
+import {
+  EvidenceAssembler,
+  EvidenceAssemblyError,
+} from "../src/agent/evidence-assembler.js";
+import type {
+  MemoryContext,
+  ResearchContext,
+} from "../src/agent/orchestration-types.js";
 
 const fixedDate = "2026-11-11T10:00:00.000Z";
 
@@ -71,13 +78,18 @@ describe("EvidenceAssembler", () => {
     });
   });
 
-  it("preserves research title and URL", () => {
+  it("preserves research title and original URL", () => {
     const assembler = new EvidenceAssembler(() => new Date(fixedDate));
 
     const result = assembler.assemble(null, researchContext);
+    const item = result.items[0];
 
-    expect(result.items[0]).toEqual({
-      id: "research_result:https://example.com/docs",
+    const expectedHash = createHash("sha256")
+      .update("https://example.com/docs")
+      .digest("hex");
+
+    expect(item).toEqual({
+      id: `research_result:${expectedHash}`,
       sourceType: "research_result",
       sourceId: "https://example.com/docs",
       content: "Official project documentation.",
@@ -85,6 +97,37 @@ describe("EvidenceAssembler", () => {
       title: "Project Documentation",
       sourceUrl: "https://example.com/docs",
     });
+  });
+
+  it("creates compact evidence IDs for long research URLs", () => {
+    const assembler = new EvidenceAssembler(() => new Date(fixedDate));
+
+    const longUrl =
+      `https://example.com/${"very-long-path-segment/".repeat(15)}` +
+      `?query=${"long-query-value-".repeat(15)}`;
+
+    const longUrlContext: ResearchContext = {
+      ...researchContext,
+      results: [
+        {
+          ...researchContext.results[0],
+          url: longUrl,
+        },
+      ],
+    };
+
+    const result = assembler.assemble(null, longUrlContext);
+    const item = result.items[0];
+
+    const expectedHash = createHash("sha256")
+      .update(longUrl)
+      .digest("hex");
+
+    expect(item.id).toBe(`research_result:${expectedHash}`);
+    expect(item.id.length).toBeLessThanOrEqual(200);
+    expect(item.sourceId).toBe(longUrl);
+    expect(item.sourceUrl).toBe(longUrl);
+    expect(item.sourceId.length).toBeGreaterThan(200);
   });
 
   it("uses searchedAt when a research result has no publication date", () => {

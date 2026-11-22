@@ -86,6 +86,20 @@ export class EvidenceComparisonEngine {
                 continue;
             }
 
+            if (key.startsWith("invalid:")) {
+                results.push(
+                    this.createResult(
+                        historical.id,
+                        current.id,
+                        "inconclusive",
+                        [],
+                        [currentItem.id],
+                        "Evidence could not be compared because its URL is invalid.",
+                    ),
+                );
+                continue;
+            }
+
             if (historicalEvidence.has(key)) {
                 continue;
             }

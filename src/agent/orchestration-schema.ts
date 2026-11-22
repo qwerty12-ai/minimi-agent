@@ -48,7 +48,7 @@ export const EvidenceSourceTypeSchema = z.enum([
 export const EvidenceItemSchema = z.object({
   id: z.string().trim().min(1).max(200),
   sourceType: EvidenceSourceTypeSchema,
-  sourceId: z.string().trim().min(1).max(200),
+  sourceId: z.string().trim().min(1).max(2048),
   content: z.string().trim().min(1).max(100000),
   createdAt: z.string().datetime(),
   title: z.string().trim().min(1).max(500).optional(),
@@ -110,6 +110,18 @@ export const AgentResponseSchema = z.object({
 
     ids.add(citation.evidenceId);
   });
+
+  if (
+    (response.status === "supported" ||
+      response.status === "partially_supported") &&
+    response.citations.length === 0
+  ) {
+    context.addIssue({
+      code: "custom",
+      path: ["citations"],
+      message: "A supported response must contain at least one citation.",
+    });
+  }
 
   if (
     response.status === "insufficient_evidence" &&

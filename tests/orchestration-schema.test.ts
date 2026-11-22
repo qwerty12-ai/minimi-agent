@@ -337,6 +337,34 @@ describe("Orchestration domain contracts", () => {
         )
       ).not.toThrow();
     });
+
+  it("rejects a supported answer without citations", () => {
+      expect(() =>
+        parseAgentResponse({
+          answer: "PostgreSQL is an open-source relational database.",
+          intent: "RESEARCH",
+          status: "supported",
+          citations: [],
+          generatedAt: timestamp,
+        })
+      ).toThrow(
+        "A supported response must contain at least one citation."
+      );
+    });
+
+    it("rejects a partially supported answer without citations", () => {
+      expect(() =>
+        parseAgentResponse({
+          answer: "Some aspects are supported.",
+          intent: "RESEARCH",
+          status: "partially_supported",
+          citations: [],
+          generatedAt: timestamp,
+        })
+      ).toThrow(
+        "A supported response must contain at least one citation."
+      );
+    });
   });
 
   describe("AgentExecutionError", () => {

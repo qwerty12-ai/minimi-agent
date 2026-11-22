@@ -42,26 +42,9 @@ export class SQLiteVerificationRepository
     private readonly database: SQLiteDatabase,
   ) {}
 
-  async saveVerificationResult(
-    result: VerificationResult,
-  ): Promise<void> {
-    const parsed = parseVerificationResult(result);
-
-    const validated: VerificationResult = {
-      id: parsed.id,
-      historicalSnapshotId: parsed.historicalSnapshotId,
-      ...(parsed.currentSnapshotId !== undefined
-        ? { currentSnapshotId: parsed.currentSnapshotId }
-        : {}),
-      ...(parsed.conversationId !== undefined
-        ? { conversationId: parsed.conversationId }
-        : {}),
-      query: parsed.query,
-      status: parsed.status,
-      findings: parsed.findings,
-      verifiedAt: parsed.verifiedAt,
-    };
-
+  private insertVerificationResult(
+    validated: VerificationResult,
+  ): void {
     this.database.prepare(`
       INSERT INTO verification_results (
         id,
@@ -84,6 +67,100 @@ export class SQLiteVerificationRepository
       JSON.stringify(validated.findings),
       validated.verifiedAt,
     );
+  }
+
+  private insertComparisonResult(
+    validated: ComparisonResult,
+  ): void {
+    this.database.prepare(`
+      INSERT INTO comparison_results (
+        id,
+        historical_snapshot_id,
+        current_snapshot_id,
+        status,
+        historical_evidence_ids_json,
+        current_evidence_ids_json,
+        explanation,
+        compared_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      validated.id,
+      validated.historicalSnapshotId,
+      validated.currentSnapshotId,
+      validated.status,
+      JSON.stringify(validated.historicalEvidenceIds),
+      JSON.stringify(validated.currentEvidenceIds),
+      validated.explanation,
+      validated.comparedAt,
+    );
+  }
+
+  async saveVerificationResult(
+    result: VerificationResult,
+  ): Promise<void> {
+    const parsed = parseVerificationResult(result);
+
+    const validated: VerificationResult = {
+      id: parsed.id,
+      historicalSnapshotId: parsed.historicalSnapshotId,
+      ...(parsed.currentSnapshotId !== undefined
+        ? { currentSnapshotId: parsed.currentSnapshotId }
+        : {}),
+      ...(parsed.conversationId !== undefined
+        ? { conversationId: parsed.conversationId }
+        : {}),
+      query: parsed.query,
+      status: parsed.status,
+      findings: parsed.findings,
+      verifiedAt: parsed.verifiedAt,
+    };
+
+    this.insertVerificationResult(validated);
+  }
+
+  async saveVerificationBundle(
+    comparisons: ComparisonResult[],
+    verification: VerificationResult,
+  ): Promise<void> {
+    const validatedComparisons = comparisons.map(
+      parseComparisonResult,
+    );
+
+    const parsedVerification =
+      parseVerificationResult(verification);
+
+    const validatedVerification: VerificationResult = {
+      id: parsedVerification.id,
+      historicalSnapshotId:
+        parsedVerification.historicalSnapshotId,
+      ...(parsedVerification.currentSnapshotId !== undefined
+        ? {
+            currentSnapshotId:
+              parsedVerification.currentSnapshotId,
+          }
+        : {}),
+      ...(parsedVerification.conversationId !== undefined
+        ? {
+            conversationId:
+              parsedVerification.conversationId,
+          }
+        : {}),
+      query: parsedVerification.query,
+      status: parsedVerification.status,
+      findings: parsedVerification.findings,
+      verifiedAt: parsedVerification.verifiedAt,
+    };
+
+    const transaction = this.database.transaction(() => {
+      for (const comparison of validatedComparisons) {
+        this.insertComparisonResult(comparison);
+      }
+
+      this.insertVerificationResult(validatedVerification);
+    });
+
+    transaction();
   }
 
   async findVerificationResult(
@@ -147,28 +224,7 @@ export class SQLiteVerificationRepository
   ): Promise<void> {
     const validated = parseComparisonResult(result);
 
-    this.database.prepare(`
-      INSERT INTO comparison_results (
-        id,
-        historical_snapshot_id,
-        current_snapshot_id,
-        status,
-        historical_evidence_ids_json,
-        current_evidence_ids_json,
-        explanation,
-        compared_at
-      )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      validated.id,
-      validated.historicalSnapshotId,
-      validated.currentSnapshotId,
-      validated.status,
-      JSON.stringify(validated.historicalEvidenceIds),
-      JSON.stringify(validated.currentEvidenceIds),
-      validated.explanation,
-      validated.comparedAt,
-    );
+    this.insertComparisonResult(validated);
   }
 
   async findComparisonResults(
@@ -203,8 +259,10 @@ export class SQLiteVerificationRepository
 
       return parseComparisonResult({
         id: row.id,
-        historicalSnapshotId: row.historical_snapshot_id,
-        currentSnapshotId: row.current_snapshot_id,
+        historicalSnapshotId:
+          row.historical_snapshot_id,
+        currentSnapshotId:
+          row.current_snapshot_id,
         status: row.status,
         historicalEvidenceIds,
         currentEvidenceIds,

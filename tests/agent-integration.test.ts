@@ -54,7 +54,12 @@ describe("Agent Integration", () => {
                 answer: "TypeScript is a strongly typed programming language.",
                 intent: "RESEARCH",
                 status: "supported",
-                citations: [],
+                citations: [
+                  {
+                    evidenceId:
+                      "research_result:595d2f97f0989f9d3500b443419a873f29a55ea6388b7e276ac9ac1058dcd5ec",
+                  },
+                ],
                 generatedAt: generationTime,
               };
 
