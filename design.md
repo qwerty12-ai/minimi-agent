@@ -1,193 +1,96 @@
-# Design Document — minimi-agent
+# MiniMi Agent — Design
 
-**Status:** Draft, Milestone 0  
-**Last updated:** 2026-11-10
+## Overview
 
-## 1. Problem statement
+MiniMi Agent is a local-first conversational research agent designed around four request types: **RESEARCH**, **RECALL**, **VERIFY**, and **COMPARE**. Rather than treating every message as a new search, it routes requests through an explicit execution policy, retrieves the appropriate historical or current context, assembles evidence, and asks a local language model to produce a structured, evidence-grounded response.
 
-Build a conversational research agent that can use web search, retain useful conversation and research history, and answer questions about what it previously found and whether that information has changed.
+The challenge's central design problem is temporal and conversational continuity: research should be persisted so that the agent can retrieve what it previously found and assess it against newer search results.
 
-The challenge is not simply to call a search API. The system must connect historical context to current evidence while preserving provenance and time.
+## Architecture
 
-## 2. Scope
-
-### In scope
-
-- Conversational request handling.
-- Four initial request intents: `RECALL`, `RESEARCH`, `VERIFY`, `COMPARE`.
-- One external capability: web search.
-- Persistent conversation and research history.
-- Source URL and retrieval-time preservation.
-- Comparison of historical claims with newly retrieved evidence.
-- Evidence-grounded responses and explicit uncertainty.
-- A local-first development workflow.
-
-### Out of scope for the challenge MVP
-
-- A macOS proactive assistant.
-- Calendar, email, filesystem or notification integrations.
-- Multiple collaborating agents.
-- Autonomous unrestricted tool loops.
-- Model training or fine-tuning.
-- A distributed microservice deployment.
-
-## 3. Initial non-functional requirements
-
-- **Correctness:** Never invent a historical conversation or research snapshot.
-- **Traceability:** Claims should be traceable to sources where available.
-- **Temporal accuracy:** Distinguish event time, observation time and retrieval time.
-- **Reliability:** Validate model output and handle tool failures.
-- **Performance:** Bound model calls, search calls and retrieved context.
-- **Cost:** Target zero paid infrastructure and paid API dependencies.
-- **Maintainability:** Keep model, search, memory and orchestration behind interfaces.
-
-Numeric latency and quality targets will be set after a baseline benchmark.
-
-## 4. Proposed architecture
-
-```text
-Client
-  |
-  v
-Fastify API
-  |
-  v
-Agent Orchestrator
-  |-- Intent classification (LLM adapter)
-  |-- Memory retrieval (memory interface)
-  |-- Search decision and tool execution
-  |-- Evidence assembly
-  |-- Response synthesis (LLM adapter)
-  |
-  +---- Memory Store (SQLite, planned)
-  |
-  +---- Web Search Tool (provider TBD)
-  |
-  +---- Local LLM (Ollama during development)
+```mermaid
+flowchart TD
+    UI[React / Vite UI] --> API[Fastify API]
+    API --> Agent[Agent orchestration]
+    Agent --> Classifier[Ollama intent classifier]
+    Agent --> Policy[Execution policy]
+    Policy --> Memory[Memory retrieval]
+    Policy --> Research[Research executor]
+    Memory --> SQLite[(SQLite)]
+    Research --> Search[Search service]
+    Search --> SX[SearXNG]
+    Agent --> Evidence[Evidence assembly]
+    Evidence --> Synth[Grounded synthesizer / Ollama]
+    Agent --> Verify[Verification workflow]
+    Verify --> History[Historical snapshot retrieval]
+    Verify --> Research
+    Verify --> Compare[Evidence comparison engine]
+    History --> SQLite
+    Compare --> SQLite
+    Synth --> API
+    API --> UI
 ```
 
-The orchestrator owns workflow control. The model may interpret language and produce structured proposals, but it does not receive unrestricted database or tool access.
+The backend is organized around separable modules and interfaces rather than a single model-driven loop. Fastify exposes the API; the agent layer coordinates classification, planning, retrieval, research, evidence assembly, synthesis and verification. SQLite-backed repositories persist conversations, research snapshots and verification/comparison results. Search and language-model providers are adapters, keeping their integration points distinct from orchestration.
 
-## 5. Initial intent semantics
+## Request routing and orchestration
 
-| Intent | Meaning | Typical memory need | Typical search need |
-|---|---|---:|---:|
-| `RECALL` | Retrieve historical conversation or research | Yes | No |
-| `RESEARCH` | Find new information | Context-dependent | Yes |
-| `VERIFY` | Retrieve a previous claim and check it against current evidence | Yes | Yes |
-| `COMPARE` | Retrieve historical information and compare it with current information | Yes | Yes |
+The intent classifier uses Ollama and constrained structured output to classify a message into one of four intents. The classification is runtime-validated before the execution policy creates a plan:
 
-These are workflow defaults, not hard-coded universal truths. The final plan must account for the actual request and available evidence.
+| Intent | Memory | Search | Purpose |
+|---|---:|---:|---|
+| `RECALL` | Required | No | Retrieve previously discussed or stored information |
+| `RESEARCH` | No by default | Required | Gather new external information |
+| `VERIFY` | Required | Required | Retrieve prior research and investigate it afresh |
+| `COMPARE` | Required | Required | Compare historical conversational information with current research |
 
-## 6. Memory model — proposed
+The execution policy makes these requirements explicit and inspectable. The orchestrator, not the model, owns execution control. Classification is a model-assisted decision; downstream plans and data structures are validated.
 
-The system must distinguish:
+## Research and evidence-grounded synthesis
 
-- **Conversation history:** user and assistant messages, ordered by timestamp.
-- **Research run:** a bounded research operation with its query and execution time.
-- **Source:** a URL and metadata captured during a research run.
-- **Claim:** an atomic statement extracted from research.
-- **Claim evidence:** the relationship between a claim and supporting or contradicting sources.
+Research is performed through a search-provider abstraction. The current adapter uses SearXNG. The search service validates requests and responses, normalizes result text and URLs, removes duplicate URLs, bounds result counts, and rejects provider identity or query mismatches.
 
-Temporal fields must not be conflated:
+The research executor converts search results into a research context. Evidence assembly combines available memory and research snippets into a normalized evidence package with stable evidence identifiers and source metadata. The grounded synthesizer receives the evidence package and returns a structured response containing the answer, intent, support status and evidence citations.
 
-- `published_at` / `event_at`: when the source says an event happened, if known.
-- `observed_at`: when the agent observed the information.
-- `retrieved_at`: when the source was fetched.
+The synthesis contract distinguishes `supported`, `partially_supported`, and `insufficient_evidence`. Citation references are validated against the supplied evidence. The design explicitly instructs the model not to fabricate citations, historical information, or unsupported conclusions, and to communicate when evidence is inadequate. This is a safeguard and validation boundary, not a guarantee that an LLM can never make an error.
 
-A new observation must not overwrite the historical snapshot.
+## Persistent conversation and research context
 
-## 7. Interfaces and boundaries — to be specified
+SQLite is the persistence boundary for this local application. Repository abstractions support conversation history and research snapshots, including search query, provider, search/recording timestamps and stored result metadata. Memory search uses SQLite FTS5/BM25 over indexed conversation messages and memory records, with a less restrictive OR-query fallback when an AND query yields no results.
 
-Planned interfaces:
+Memory retrieval validates its input and result context. Historical research is retrieved by snapshot identifier and normalized before use; optional conversation association is checked to prevent a snapshot from being used with a mismatched conversation identifier. Persisted snapshots preserve the earlier search results rather than replacing them with a later search.
 
-- `LLMProvider`: generate structured intent and grounded responses.
-- `SearchProvider`: return normalized search results.
-- `ConversationRepository`: persist and retrieve messages.
-- `ResearchRepository`: persist research runs, sources and claims.
-- `AgentOrchestrator`: coordinate the request lifecycle.
+## Temporal verification and comparison
 
-Exact TypeScript contracts will be added after the data model and failure cases are reviewed.
+VERIFY and COMPARE are designed to use history as one side of a temporal investigation rather than relying on the model's recollection alone. The verification workflow retrieves a historical research snapshot and runs fresh research against its query. Verification output is structured into findings with statuses (`unchanged`, `changed`, `unsupported`, or `inconclusive`) and links to historical and current evidence IDs.
 
-## 8. Reliability and security considerations
+The evidence comparison engine also compares snapshots at the result level. It indexes evidence by normalized URL and classifies items as `unchanged`, `changed`, `historical_only`, `current_only`, or `inconclusive`. Matching URLs are considered changed when available result metadata/content fields differ; unmatched URLs are surfaced rather than silently discarded. This is a comparison of captured search-result evidence, not a full-page crawler or a proof of factual truth.
 
-- Treat model output, search snippets and web pages as untrusted data.
-- Validate structured model output with runtime schemas.
-- Apply timeouts and bounded retries to external calls.
-- Do not execute instructions found in retrieved web content.
-- Keep secrets in environment variables; never commit `.env`.
-- Avoid logging sensitive conversation contents by default.
-- Handle missing history honestly; do not fabricate recall.
-- Distinguish “no change found” from “unable to verify”.
+Verification and comparison records are persisted, allowing results to be revisited. The system distinguishes insufficient or inconclusive evidence from a confirmed change.
 
-## 9. Technology decisions
+## Reliability and validation
 
-| Area | Initial choice | Status |
-|---|---|---|
-| Language/runtime | TypeScript / Node.js | Selected |
-| HTTP server | Fastify | Selected for foundation |
-| Validation | Zod | Selected |
-| Testing | Vitest | Selected |
-| Local model runner | Ollama | Selected for development |
-| Model | Qwen3.5 2B | Initial benchmark only |
-| Database | SQLite + FTS5 | Proposed |
-| SQLite driver | TBD | Open decision |
-| Search | SearXNG candidate | Not finalized |
-| Orchestration | Custom TypeScript | Proposed |
+- Runtime schemas (Zod) validate requests, model output, search data, evidence packages and verification records.
+- Search, memory, evidence assembly and verification components expose bounded inputs and typed error paths.
+- Search-result processing normalizes and deduplicates URLs and bounds result volume.
+- The grounded synthesis contract requires citations to supplied evidence and explicit insufficiency when support is inadequate.
+- The test suite covers unit, integration, failure/recovery, boundary, evaluation and regression scenarios across agent orchestration, search, memory, synthesis and verification.
 
-## 10. Open decisions
+These controls reduce invalid data flow and make failures observable and testable; they do not eliminate model uncertainty or external-search limitations.
 
-1. Which SQLite driver best fits Windows development and deployment?
-2. Which search provider gives reliable results without paid API keys?
-3. What normalized fields must every search result contain?
-4. What retrieval strategy is sufficient before introducing embeddings?
-5. What are the exact schemas for claims, sources and research runs?
-6. What latency and answer-quality thresholds should the evaluation enforce?
-7. How should ambiguous relative dates be resolved and clarified?
+## Technology and operating scope
 
-## 11. Evaluation plan
+- **Backend:** TypeScript, Node.js, Fastify, Zod
+- **Frontend:** React, Vite, Tailwind CSS
+- **LLM:** Ollama, through provider interfaces
+- **Search:** SearXNG
+- **Persistence:** SQLite and FTS5
+- **Testing:** Vitest
 
-The first acceptance scenarios will reproduce the challenge examples:
+MiniMi Agent v1 is a locally operated, single-user project. Authentication, authorization, multi-user data isolation and production SaaS deployment are not implemented. This scope prioritizes the agent's research, evidence, memory and temporal-verification behavior within the challenge constraints.
 
-1. Recall a specific question from a past date.
-2. Retrieve a previous answer and verify it against current evidence.
-3. Compare a historical shortlist with current product information.
+## Tradeoffs and evolution
 
-Additional tests will cover missing history, stale sources, contradictory sources, search timeouts, malformed model output, and ambiguous dates.
+The local-first stack keeps the project runnable without paid hosted model or search APIs and makes its data and dependencies easier to inspect. SQLite simplifies persistence for a single-user workload; it is not presented as a multi-tenant database strategy. FTS5 provides lexical retrieval rather than embedding-based semantic search. SearXNG reduces dependence on a single commercial search API, while result quality, availability and coverage remain dependent on the configured search engines. Ollama makes model execution local, with quality and latency dependent on the selected model and machine.
 
-## 12. Milestones
-
-- M0 — Architecture and contracts.
-- M1 — API and project foundation.
-- M2 — Search adapter.
-- M3 — Persistent conversation and research memory.
-- M4 — Orchestration and grounded synthesis.
-- M5 — Temporal verification and comparison.
-- M6 — Evaluation, reliability and performance.
-- M7 — Documentation and submission.
-
-## 13. Architecture decision log
-
-### ADR-001: Keep orchestration in application code
-
-**Decision:** Use custom TypeScript orchestration initially.
-
-**Reason:** The workflow is bounded and understandable. Application code should control persistence, validation, tool execution, retries and state transitions.
-
-**Trade-off:** We own orchestration logic and tests instead of adopting a framework's abstractions.
-
-### ADR-002: Keep the model replaceable
-
-**Decision:** Access models through an `LLMProvider` interface.
-
-**Reason:** Local hardware and model quality may require changing models. Core business logic should not depend on Ollama-specific response shapes.
-
-**Trade-off:** A small adapter layer is required.
-
-### ADR-003: Preserve historical research snapshots
-
-**Decision:** Store new observations rather than overwriting old claims.
-
-**Reason:** Verification and change detection require knowing what the system observed previously.
-
-**Trade-off:** Storage grows over time; retention policy can be designed later.
+A multi-user or hosted evolution would require authentication and authorization enforced at API and repository boundaries, tenant-aware ownership/isolation for conversations, memory, snapshots and verification records, operational controls, deployment/security hardening, and tests for isolation. These are extension points and future work, not capabilities claimed by the current implementation.
