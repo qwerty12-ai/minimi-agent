@@ -6,6 +6,7 @@ import type {
     ConversationRepository,
     ResearchSnapshot,
     ResearchSnapshotRepository,
+    ResearchSnapshotSummary,
 } from "./types.js";
 
 import {
@@ -60,14 +61,14 @@ export class SQLiteConversationRepository
 
         this.database
             .prepare(`
-        INSERT INTO conversations (
-          id,
-          title,
-          created_at,
-          updated_at
-        )
-        VALUES (?, ?, ?, ?)
-      `)
+                INSERT INTO conversations (
+                    id,
+                    title,
+                    created_at,
+                    updated_at
+                )
+                VALUES (?, ?, ?, ?)
+            `)
             .run(
                 validated.id,
                 validated.title ?? null,
@@ -79,14 +80,14 @@ export class SQLiteConversationRepository
     async findById(id: string): Promise<Conversation | null> {
         const row = this.database
             .prepare(`
-        SELECT
-          id,
-          title,
-          created_at,
-          updated_at
-        FROM conversations
-        WHERE id = ?
-      `)
+                SELECT
+                    id,
+                    title,
+                    created_at,
+                    updated_at
+                FROM conversations
+                WHERE id = ?
+            `)
             .get(id) as ConversationRow | undefined;
 
         if (!row) {
@@ -95,7 +96,9 @@ export class SQLiteConversationRepository
 
         const parsed = parseConversation({
             id: row.id,
-            ...(row.title !== null ? { title: row.title } : {}),
+            ...(row.title !== null
+                ? { title: row.title }
+                : {}),
             createdAt: row.created_at,
             updatedAt: row.updated_at,
         });
@@ -110,27 +113,67 @@ export class SQLiteConversationRepository
         };
     }
 
+    async list(limit = 50): Promise<Conversation[]> {
+        const safeLimit = Math.max(
+            1,
+            Math.min(100, Math.floor(limit))
+        );
+
+        const rows = this.database
+            .prepare(`
+                SELECT
+                    id,
+                    title,
+                    created_at,
+                    updated_at
+                FROM conversations
+                ORDER BY updated_at DESC, id DESC
+                LIMIT ?
+            `)
+            .all(safeLimit) as ConversationRow[];
+
+        return rows.map((row) => {
+            const parsed = parseConversation({
+                id: row.id,
+                ...(row.title !== null
+                    ? { title: row.title }
+                    : {}),
+                createdAt: row.created_at,
+                updatedAt: row.updated_at,
+            });
+
+            return {
+                id: parsed.id,
+                ...(parsed.title !== undefined
+                    ? { title: parsed.title }
+                    : {}),
+                createdAt: parsed.createdAt,
+                updatedAt: parsed.updatedAt,
+            };
+        });
+    }
+
     async appendMessage(
         message: ConversationMessage
     ): Promise<void> {
         const validated = parseConversationMessage(message);
 
         const insertMessage = this.database.prepare(`
-      INSERT INTO conversation_messages (
-        id,
-        conversation_id,
-        role,
-        content,
-        created_at
-      )
-      VALUES (?, ?, ?, ?, ?)
-    `);
+            INSERT INTO conversation_messages (
+                id,
+                conversation_id,
+                role,
+                content,
+                created_at
+            )
+            VALUES (?, ?, ?, ?, ?)
+        `);
 
         const updateConversation = this.database.prepare(`
-      UPDATE conversations
-      SET updated_at = ?
-      WHERE id = ?
-    `);
+            UPDATE conversations
+            SET updated_at = ?
+            WHERE id = ?
+        `);
 
         const save = this.database.transaction(() => {
             insertMessage.run(
@@ -155,16 +198,16 @@ export class SQLiteConversationRepository
     ): Promise<ConversationMessage[]> {
         const rows = this.database
             .prepare(`
-        SELECT
-          id,
-          conversation_id,
-          role,
-          content,
-          created_at
-        FROM conversation_messages
-        WHERE conversation_id = ?
-        ORDER BY created_at ASC, rowid ASC
-      `)
+                SELECT
+                    id,
+                    conversation_id,
+                    role,
+                    content,
+                    created_at
+                FROM conversation_messages
+                WHERE conversation_id = ?
+                ORDER BY created_at ASC, rowid ASC
+            `)
             .all(conversationId) as MessageRow[];
 
         return rows.map((row) =>
@@ -189,30 +232,30 @@ export class SQLiteResearchSnapshotRepository
         const validated = parseResearchSnapshot(snapshot);
 
         const insertSnapshot = this.database.prepare(`
-      INSERT INTO research_snapshots (
-        id,
-        conversation_id,
-        query,
-        provider,
-        searched_at,
-        recorded_at
-      )
-      VALUES (?, ?, ?, ?, ?, ?)
-    `);
+            INSERT INTO research_snapshots (
+                id,
+                conversation_id,
+                query,
+                provider,
+                searched_at,
+                recorded_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?)
+        `);
 
         const insertResult = this.database.prepare(`
-      INSERT INTO research_snapshot_results (
-        snapshot_id,
-        result_order,
-        title,
-        url,
-        snippet,
-        source,
-        published_at,
-        score
-      )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `);
+            INSERT INTO research_snapshot_results (
+                snapshot_id,
+                result_order,
+                title,
+                url,
+                snippet,
+                source,
+                published_at,
+                score
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `);
 
         const save = this.database.transaction(() => {
             insertSnapshot.run(
@@ -246,16 +289,16 @@ export class SQLiteResearchSnapshotRepository
     ): Promise<ResearchSnapshot | null> {
         const row = this.database
             .prepare(`
-        SELECT
-          id,
-          conversation_id,
-          query,
-          provider,
-          searched_at,
-          recorded_at
-        FROM research_snapshots
-        WHERE id = ?
-      `)
+                SELECT
+                    id,
+                    conversation_id,
+                    query,
+                    provider,
+                    searched_at,
+                    recorded_at
+                FROM research_snapshots
+                WHERE id = ?
+            `)
             .get(id) as SnapshotRow | undefined;
 
         if (!row) {
@@ -270,36 +313,69 @@ export class SQLiteResearchSnapshotRepository
     ): Promise<ResearchSnapshot[]> {
         const rows = this.database
             .prepare(`
-        SELECT
-          id,
-          conversation_id,
-          query,
-          provider,
-          searched_at,
-          recorded_at
-        FROM research_snapshots
-        WHERE conversation_id = ?
-        ORDER BY recorded_at ASC, id ASC
-      `)
+                SELECT
+                    id,
+                    conversation_id,
+                    query,
+                    provider,
+                    searched_at,
+                    recorded_at
+                FROM research_snapshots
+                WHERE conversation_id = ?
+                ORDER BY recorded_at ASC, id ASC
+            `)
             .all(conversationId) as SnapshotRow[];
 
         return rows.map((row) => this.buildSnapshot(row));
     }
 
+    async list(limit = 50): Promise<ResearchSnapshotSummary[]> {
+        const safeLimit = Math.max(
+            1,
+            Math.min(100, Math.floor(limit))
+        );
+
+        const rows = this.database
+            .prepare(`
+                SELECT
+                    id,
+                    conversation_id,
+                    query,
+                    provider,
+                    searched_at,
+                    recorded_at
+                FROM research_snapshots
+                ORDER BY recorded_at DESC, id DESC
+                LIMIT ?
+            `)
+            .all(safeLimit) as SnapshotRow[];
+
+        return rows.map((row) => ({
+            id: row.id,
+            ...(row.conversation_id !== null
+                ? { conversationId: row.conversation_id }
+                : {}),
+            query: row.query,
+            provider: row.provider,
+            searchedAt: row.searched_at,
+            recordedAt: row.recorded_at,
+        }));
+    }
+
     private buildSnapshot(row: SnapshotRow): ResearchSnapshot {
         const resultRows = this.database
             .prepare(`
-        SELECT
-          title,
-          url,
-          snippet,
-          source,
-          published_at,
-          score
-        FROM research_snapshot_results
-        WHERE snapshot_id = ?
-        ORDER BY result_order ASC
-      `)
+                SELECT
+                    title,
+                    url,
+                    snippet,
+                    source,
+                    published_at,
+                    score
+                FROM research_snapshot_results
+                WHERE snapshot_id = ?
+                ORDER BY result_order ASC
+            `)
             .all(row.id) as SnapshotResultRow[];
 
         const results = resultRows.map((result) =>

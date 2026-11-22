@@ -1,0 +1,138 @@
+@import "tailwindcss";
+
+:root {
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", sans-serif;
+  color-scheme: dark;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  --surface-base: #111210;
+  --surface-sidebar: #151613;
+  --surface-raised: #1b1c19;
+  --surface-hover: #232420;
+  --surface-input: #191a17;
+
+  --border-subtle: #292a25;
+  --border-strong: #373832;
+
+  --text-primary: #e9e9e2;
+  --text-secondary: #a2a39a;
+  --text-muted: #72746c;
+
+  --accent: #c9a879;
+  --accent-muted: #8f7655;
+  --accent-soft: rgba(201, 168, 121, 0.1);
+
+  --status-green: #8fb29a;
+  --status-red: #cf8e86;
+  --status-yellow: #d2b47e;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  min-width: 320px;
+  min-height: 100%;
+  margin: 0;
+}
+
+html {
+  height: 100%;
+  scroll-behavior: smooth;
+}
+
+body {
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--surface-base);
+  color: var(--text-primary);
+  overflow-x: hidden;
+}
+
+#root {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+::selection {
+  background: rgba(201, 168, 121, 0.25);
+  color: #fff;
+}
+
+:focus-visible {
+  outline: 2px solid rgba(201, 168, 121, 0.75);
+  outline-offset: 2px;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #383933 transparent;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #383933;
+  border-radius: 4px;
+}
+
+textarea {
+  scrollbar-width: thin;
+}
+
+@media (max-width: 767px) {
+  html,
+  body {
+    overflow-x: hidden;
+  }
+
+  button {
+    touch-action: manipulation;
+  }
+
+  ::-webkit-scrollbar {
+    width: 4px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

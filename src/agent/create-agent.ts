@@ -40,6 +40,7 @@ import type {
   Conversation,
   ConversationMessage,
   ResearchSnapshot,
+  ResearchSnapshotSummary,
 } from "../memory/types.js";
 
 import type {
@@ -220,6 +221,85 @@ export function createAgent(options: CreateAgentOptions = {}) {
   return {
     async plan(message: string) {
       return planRequest(message, classifier);
+    },
+
+    // M7.8: Search persisted memories and conversation content.
+    async searchMemory(query: string, limit = 10) {
+      try {
+        return await infrastructure.memoryStore.search.search(
+          query,
+          limit,
+        );
+      } catch (error) {
+        throw new AgentPersistenceError(
+          "search_memory",
+          "Failed to search memory.",
+          { cause: error },
+        );
+      }
+    },
+
+    // M7.4: Conversation history listing
+    async listConversations(limit = 50) {
+      try {
+        return await infrastructure.memoryStore.conversations.list(
+          limit,
+        );
+      } catch (error) {
+        throw new AgentPersistenceError(
+          "list_conversations",
+          "Failed to retrieve conversation history.",
+          { cause: error },
+        );
+      }
+    },
+
+    // M7.7.3: Historical research snapshot listing
+    async listResearchSnapshots(
+      limit = 50,
+    ): Promise<ResearchSnapshotSummary[]> {
+      try {
+        return await infrastructure.memoryStore.researchSnapshots.list(
+          limit,
+        );
+      } catch (error) {
+        throw new AgentPersistenceError(
+          "list_research_snapshots",
+          "Failed to retrieve research snapshots.",
+          { cause: error },
+        );
+      }
+    },
+
+    // M7.4: Retrieve one conversation and its messages
+    async getConversation(id: string): Promise<{
+      conversation: Conversation;
+      messages: ConversationMessage[];
+    } | null> {
+      try {
+        const conversation =
+          await infrastructure.memoryStore.conversations.findById(id);
+
+        if (!conversation) {
+          return null;
+        }
+
+        const messages =
+          await infrastructure.memoryStore.conversations.getMessages(
+            id,
+          );
+
+        return {
+          conversation,
+          messages,
+        };
+      } catch (error) {
+        throw new AgentPersistenceError(
+          "get_conversation",
+          "Failed to retrieve conversation.",
+          { cause: error },
+        );
+      }
     },
 
     async execute(
