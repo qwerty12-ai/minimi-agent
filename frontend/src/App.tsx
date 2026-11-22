@@ -1,12 +1,15 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
-import { executeAgent } from './lib/api'
+import { executeAgent, getConversation } from './lib/api'
 import Sidebar from './components/Sidebar'
 import WelcomeScreen from './components/WelcomeScreen'
 import ErrorBanner from './components/ErrorBanner'
 import ChatInput from './components/ChatInput'
 import MessageList from './components/MessageList'
+import HistoryWorkspace from './components/HistoryWorkspace'
 import type { ChatMessage as ChatMessageType } from './components/types'
+
+type Workspace = 'research' | 'history'
 
 function App() {
   const [message, setMessage] = useState('')
@@ -14,6 +17,7 @@ function App() {
   const [conversationId, setConversationId] = useState<string | undefined>()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [activeWorkspace, setActiveWorkspace] = useState<Workspace>('research')
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -61,6 +65,42 @@ function App() {
     }
   }
 
+  async function selectConversation(id: string) {
+    if (loading) return
+
+    setLoading(true)
+    setError(null)
+
+    try {
+      const response = await getConversation(id)
+
+      const restoredMessages: ChatMessageType[] = response.messages
+        .filter(
+          (storedMessage) =>
+            storedMessage.role === 'user' ||
+            storedMessage.role === 'assistant',
+        )
+        .map((storedMessage) => ({
+          id: storedMessage.id,
+          role: storedMessage.role as 'user' | 'assistant',
+          content: storedMessage.content,
+        }))
+
+      setMessages(restoredMessages)
+      setConversationId(response.conversation.id)
+      setMessage('')
+      setActiveWorkspace('research')
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Unable to reopen this conversation.',
+      )
+    } finally {
+      setLoading(false)
+    }
+  }
+
   function startNewChat() {
     if (loading) return
 
@@ -68,18 +108,33 @@ function App() {
     setConversationId(undefined)
     setError(null)
     setMessage('')
+    setActiveWorkspace('research')
+  }
+
+  function changeWorkspace(workspace: Workspace) {
+    if (loading) return
+
+    setActiveWorkspace(workspace)
+    setError(null)
   }
 
   return (
     <div className="flex min-h-screen bg-[#0c0d10] text-[#e5e7eb]">
-      <Sidebar loading={loading} onNewChat={startNewChat} />
+      <Sidebar
+        loading={loading}
+        onNewChat={startNewChat}
+        activeWorkspace={activeWorkspace}
+        onWorkspaceChange={changeWorkspace}
+      />
 
       <main className="flex min-w-0 flex-1 flex-col">
         <header className="flex h-16 shrink-0 items-center justify-between border-b border-[#242630] px-5 md:px-8">
           <div className="flex items-center gap-2 text-sm">
             <span className="text-gray-500">Workspace</span>
             <span className="text-gray-700">/</span>
-            <strong className="text-gray-200">Research</strong>
+            <strong className="text-gray-200">
+              {activeWorkspace === 'research' ? 'Research' : 'History'}
+            </strong>
           </div>
 
           <div className="flex items-center gap-2 rounded-full border border-[#254333] bg-[#14251c] px-3 py-1.5 text-[10px] font-semibold tracking-wider text-emerald-400">
@@ -89,27 +144,43 @@ function App() {
         </header>
 
         <section className="flex min-h-0 flex-1 flex-col">
-          {messages.length === 0 ? (
-            <WelcomeScreen />
+          {activeWorkspace === 'research' ? (
+            <>
+              {messages.length === 0 ? (
+                <WelcomeScreen />
+              ) : (
+                <div className="mx-auto w-full max-w-4xl flex-1 overflow-y-auto px-5 py-8 md:px-8">
+                  <MessageList messages={messages} loading={loading} />
+                </div>
+              )}
+
+              {error && (
+                <ErrorBanner
+                  error={error}
+                  onDismiss={() => setError(null)}
+                />
+              )}
+
+              <ChatInput
+                message={message}
+                onMessageChange={setMessage}
+                loading={loading}
+                onSubmit={handleSubmit}
+              />
+            </>
           ) : (
-            <div className="mx-auto w-full max-w-4xl flex-1 overflow-y-auto px-5 py-8 md:px-8">
-              <MessageList messages={messages} loading={loading} />
-            </div>
+            <HistoryWorkspace
+              loading={loading}
+              onSelectConversation={selectConversation}
+            />
           )}
 
-          {error && (
+          {activeWorkspace === 'history' && error && (
             <ErrorBanner
               error={error}
               onDismiss={() => setError(null)}
             />
           )}
-
-          <ChatInput
-            message={message}
-            onMessageChange={setMessage}
-            loading={loading}
-            onSubmit={handleSubmit}
-          />
         </section>
 
         <footer className="flex shrink-0 items-center justify-between border-t border-[#242630] px-5 py-3 text-[10px] text-gray-600 md:px-8">

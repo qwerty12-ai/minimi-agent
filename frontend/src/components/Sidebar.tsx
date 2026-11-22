@@ -1,9 +1,21 @@
 interface SidebarProps {
   loading: boolean
   onNewChat: () => void
+  activeWorkspace: 'research' | 'history'
+  onWorkspaceChange: (workspace: 'research' | 'history') => void
 }
 
-function Sidebar({ loading, onNewChat }: SidebarProps) {
+function Sidebar({
+  loading,
+  onNewChat,
+  activeWorkspace,
+  onWorkspaceChange,
+}: SidebarProps) {
+  const workspaceClass = (workspace: 'research' | 'history') =>
+    activeWorkspace === workspace
+      ? 'flex w-full items-center gap-3 rounded-lg bg-[#24232f] px-3 py-2.5 text-left text-sm text-violet-300 transition'
+      : 'flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm text-gray-400 transition hover:bg-[#1b1c23] hover:text-gray-200'
+
   return (
     <aside className="hidden w-64 shrink-0 flex-col border-r border-[#242630] bg-[#101116] p-5 md:flex">
       <div className="mb-8 flex items-center gap-3">
@@ -31,13 +43,16 @@ function Sidebar({ loading, onNewChat }: SidebarProps) {
         </span>
 
         <nav className="space-y-1">
-          <button className="flex w-full items-center gap-3 rounded-lg bg-[#24232f] px-3 py-2.5 text-left text-sm text-violet-300">
+          <button
+            onClick={() => onWorkspaceChange('research')}
+            className={workspaceClass('research')}
+          >
             <span>◈</span> Research
           </button>
 
           <button
-            disabled
-            className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm text-gray-500"
+            onClick={() => onWorkspaceChange('history')}
+            className={workspaceClass('history')}
           >
             <span>◷</span> History
           </button>
